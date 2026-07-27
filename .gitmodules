@@ -1,0 +1,3 @@
+[submodule "src/leap_xela_mjlab/assets/leapXELA_model"]
+	path = src/leap_xela_mjlab/assets/leapXELA_model
+	url = git@github.com:mohammad200h/leapXELA_model.git
