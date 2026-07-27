@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leap-xela-mjlab"
+version = "0.1.0"
+description = "LEAP-XELA cube reorientation task ported from MJX to mjlab"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "mjlab",
+  "mujoco>=3.3.0",
+  "torch",
+  "tyro",
+  "prettytable",
+]
+
+[project.optional-dependencies]
+dev = ["ruff"]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+mjlab = { git = "https://github.com/mujocolab/mjlab", branch = "main" }
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+leap_xela_mjlab = ["assets/**"]

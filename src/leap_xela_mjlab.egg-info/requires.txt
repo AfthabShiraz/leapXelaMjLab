@@ -1,0 +1,8 @@
+mjlab
+mujoco>=3.3.0
+torch
+tyro
+prettytable
+
+[dev]
+ruff

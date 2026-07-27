@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: leap-xela-mjlab
+Version: 0.1.0
+Summary: LEAP-XELA cube reorientation task ported from MJX to mjlab
+Requires-Python: <3.13,>=3.10
+Requires-Dist: mjlab
+Requires-Dist: mujoco>=3.3.0
+Requires-Dist: torch
+Requires-Dist: tyro
+Requires-Dist: prettytable
+Provides-Extra: dev
+Requires-Dist: ruff; extra == "dev"
