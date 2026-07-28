@@ -94,7 +94,9 @@ def get_cube_cfg(
   spawn_pos: tuple[float, float, float] | None = None,
   half_size: float = _CUBE_HALF_SIZE,
   mass: float = _CUBE_MASS,
-  friction: float = 0.3,
+  friction_sliding: float = 0.3,
+  friction_torsional: float = 0.05,
+  friction_rolling: float = 0.001,
 ) -> EntityCfg:
   if spawn_pos is None:
     spawn_pos = (
@@ -102,7 +104,11 @@ def get_cube_cfg(
       CUBE_SPAWN_POS_LOCAL[1],
       CUBE_SPAWN_POS_LOCAL[2] + FLOOR_Z_OFFSET,
     )
-  friction_tuple = (friction, 0.05, 0.001)
+  friction_tuple = (
+    friction_sliding,
+    friction_torsional,
+    friction_rolling,
+  )
 
   def _spec_fn() -> mujoco.MjSpec:
     return get_cube_spec(

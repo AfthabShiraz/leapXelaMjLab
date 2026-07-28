@@ -1,0 +1,47 @@
+{
+  "os":  "Linux-6.17.0-40-generic-x86_64-with-glibc2.39",
+  "python":  "CPython 3.10.20",
+  "startedAt":  "2026-07-28T12:47:27.913156Z",
+  "program":  "/home/mamad/PhD/MJLAB/leapXelaMjLab/hyperparameter_search/run_sweep.py",
+  "codePath":  "hyperparameter_search/run_sweep.py",
+  "codePathLocal":  "hyperparameter_search/run_sweep.py",
+  "git":  {
+    "remote":  "git@github.com:mohammad200h/leapXelaMjLab.git",
+    "commit":  "a6195d3b7963bc0db3c2b6574fa6e37bf355a5ad"
+  },
+  "email":  "mohammad200h@hotmail.com",
+  "root":  "/home/mamad/PhD/MJLAB/leapXelaMjLab",
+  "host":  "mamaad",
+  "executable":  "/home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/bin/python3",
+  "cpu_count":  16,
+  "cpu_count_logical":  32,
+  "gpu":  "NVIDIA GeForce RTX 4090",
+  "gpu_count":  2,
+  "disk":  {
+    "/":  {
+      "total":  "1966736678912",
+      "used":  "1490538950656"
+    }
+  },
+  "memory":  {
+    "total":  "67249684480"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA GeForce RTX 4090",
+      "memoryTotal":  "25757220864",
+      "cudaCores":  16384,
+      "architecture":  "Ada",
+      "uuid":  "GPU-bf0b8999-a9f8-10ee-5cfe-831ec7f4c565"
+    },
+    {
+      "name":  "NVIDIA GeForce RTX 4090",
+      "memoryTotal":  "25757220864",
+      "cudaCores":  16384,
+      "architecture":  "Ada",
+      "uuid":  "GPU-9e5e2fab-4ec0-68a7-c2f5-0ddaf9e6b93d"
+    }
+  ],
+  "cudaVersion":  "13.1",
+  "writerId":  "xn674wmqtfsssi024texbx0whacpxbfw"
+}

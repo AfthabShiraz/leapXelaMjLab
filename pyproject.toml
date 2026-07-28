@@ -13,6 +13,8 @@ dependencies = [
   "torch",
   "tyro",
   "prettytable",
+  "pyyaml",
+  "python-dotenv",
 ]
 
 [project.optional-dependencies]

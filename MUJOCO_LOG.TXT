@@ -83,3 +83,28 @@ timestep: parent has 0.002, child has 0.01, keeping parent value
 iterations: parent has 100, child has 5, keeping parent value
 ls_iterations: parent has 50, child has 8, keeping parent value
 
+WARNING Mon Jul 27 19:39:17 2026: Attach conflict when attaching 'leapXELA', policy is 'warning'
+timestep: parent has 0.002, child has 0.01, keeping parent value
+iterations: parent has 100, child has 5, keeping parent value
+ls_iterations: parent has 50, child has 8, keeping parent value
+
+WARNING Tue Jul 28 13:38:52 2026: Attach conflict when attaching 'leapXELA', policy is 'warning'
+timestep: parent has 0.002, child has 0.01, keeping parent value
+iterations: parent has 100, child has 5, keeping parent value
+ls_iterations: parent has 50, child has 8, keeping parent value
+
+WARNING Tue Jul 28 13:44:37 2026: Attach conflict when attaching 'leapXELA', policy is 'warning'
+timestep: parent has 0.002, child has 0.01, keeping parent value
+iterations: parent has 100, child has 5, keeping parent value
+ls_iterations: parent has 50, child has 8, keeping parent value
+
+WARNING Tue Jul 28 13:47:25 2026: Attach conflict when attaching 'leapXELA', policy is 'warning'
+timestep: parent has 0.002, child has 0.01, keeping parent value
+iterations: parent has 100, child has 5, keeping parent value
+ls_iterations: parent has 50, child has 8, keeping parent value
+
+WARNING Tue Jul 28 13:47:52 2026: Attach conflict when attaching 'leapXELA', policy is 'warning'
+timestep: parent has 0.002, child has 0.01, keeping parent value
+iterations: parent has 100, child has 5, keeping parent value
+ls_iterations: parent has 50, child has 8, keeping parent value
+

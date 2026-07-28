@@ -1,0 +1,1570 @@
+_wandb:
+    value:
+        cli_version: 0.28.1
+        e:
+            ddmfiks6mw58q0rcvahes3klfp6nkbpq:
+                codePath: hyperparameter_search/run_sweep.py
+                codePathLocal: hyperparameter_search/run_sweep.py
+                cpu_count: 16
+                cpu_count_logical: 32
+                cudaVersion: "13.1"
+                disk:
+                    /:
+                        total: "1966736678912"
+                        used: "1490453938176"
+                email: mohammad200h@hotmail.com
+                executable: /home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/bin/python3
+                git:
+                    commit: a6195d3b7963bc0db3c2b6574fa6e37bf355a5ad
+                    remote: git@github.com:mohammad200h/leapXelaMjLab.git
+                gpu: NVIDIA GeForce RTX 4090
+                gpu_count: 2
+                gpu_nvidia:
+                    - architecture: Ada
+                      cudaCores: 16384
+                      memoryTotal: "25757220864"
+                      name: NVIDIA GeForce RTX 4090
+                      uuid: GPU-bf0b8999-a9f8-10ee-5cfe-831ec7f4c565
+                    - architecture: Ada
+                      cudaCores: 16384
+                      memoryTotal: "25757220864"
+                      name: NVIDIA GeForce RTX 4090
+                      uuid: GPU-9e5e2fab-4ec0-68a7-c2f5-0ddaf9e6b93d
+                host: mamaad
+                memory:
+                    total: "67249684480"
+                os: Linux-6.17.0-40-generic-x86_64-with-glibc2.39
+                program: /home/mamad/PhD/MJLAB/leapXelaMjLab/hyperparameter_search/run_sweep.py
+                python: CPython 3.10.20
+                root: /home/mamad/PhD/MJLAB/leapXelaMjLab
+                startedAt: "2026-07-28T12:44:40.264024Z"
+                writerId: ddmfiks6mw58q0rcvahes3klfp6nkbpq
+        m: []
+        python_version: 3.10.20
+        t:
+            "1":
+                - 1
+            "2":
+                - 1
+            "3":
+                - 3
+                - 13
+                - 15
+                - 16
+                - 61
+            "4": 3.10.20
+            "5": 0.28.1
+            "12": 0.28.1
+            "13": linux-x86_64
+env_cfg:
+    value:
+        actions:
+            joint_pos:
+                actuator_names:
+                    - if_mcp
+                    - if_rot
+                    - if_pip
+                    - if_dip
+                    - mf_mcp
+                    - mf_rot
+                    - mf_pip
+                    - mf_dip
+                    - rf_mcp
+                    - rf_rot
+                    - rf_pip
+                    - rf_dip
+                    - th_cmc
+                    - th_axl
+                    - th_mcp
+                    - th_ipl
+                clip: null
+                clip_to_ctrl_limits: true
+                ema_alpha: 1
+                entity_name: robot
+                offset: 0
+                preserve_order: false
+                scale: 0.5
+                transmission_type: JOINT
+                use_default_offset: true
+        auto_reset: true
+        commands:
+            goal_orientation:
+                asset_name: cube
+                debug_vis: true
+                debug_vis_axes: false
+                goal_asset_name: goal
+                goal_pos_offset:
+                    - 0.225
+                    - 0.17
+                    - 0
+                orientation_success_threshold: 0.1
+                resampling_time_range:
+                    - 1e+09
+                    - 1e+09
+                update_goal_on_success: true
+                use_mjx_goal_drift: true
+        decimation: 5
+        episode_length_s: 50
+        events:
+            dr_cube_mass:
+                func: leap_xela_mjlab.tasks.reorient.mdp.events.randomize_body_mass
+                interval_range_s: null
+                is_global_time: false
+                min_step_count_between_reset: 0
+                mode: reset
+                params:
+                    asset_cfg:
+                        actuator_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        actuator_names: null
+                        body_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        body_names:
+                            - cube
+                        camera_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        camera_names: null
+                        geom_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        geom_names: null
+                        joint_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        joint_names: null
+                        light_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        light_names: null
+                        material_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        material_names: null
+                        name: cube
+                        pair_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        pair_names: null
+                        preserve_order: false
+                        site_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        site_names: null
+                        tendon_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        tendon_names: null
+                    mass_range:
+                        - 0.8
+                        - 1.2
+                    operation: scale
+            dr_fingertip_friction:
+                func: leap_xela_mjlab.tasks.reorient.mdp.events.randomize_geom_friction
+                interval_range_s: null
+                is_global_time: false
+                min_step_count_between_reset: 0
+                mode: reset
+                params:
+                    asset_cfg:
+                        actuator_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        actuator_names: null
+                        body_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        body_names: null
+                        camera_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        camera_names: null
+                        geom_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        geom_names:
+                            - th_tip
+                            - if_tip
+                            - mf_tip
+                            - rf_tip
+                        joint_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        joint_names: null
+                        light_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        light_names: null
+                        material_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        material_names: null
+                        name: robot
+                        pair_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        pair_names: null
+                        preserve_order: false
+                        site_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        site_names: null
+                        tendon_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        tendon_names: null
+                    axes:
+                        - 0
+                    friction_range:
+                        - 0.5
+                        - 1
+            dr_robot_mass:
+                func: leap_xela_mjlab.tasks.reorient.mdp.events.randomize_body_mass
+                interval_range_s: null
+                is_global_time: false
+                min_step_count_between_reset: 0
+                mode: reset
+                params:
+                    asset_cfg:
+                        actuator_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        actuator_names: null
+                        body_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        body_names:
+                            - .*
+                        camera_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        camera_names: null
+                        geom_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        geom_names: null
+                        joint_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        joint_names: null
+                        light_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        light_names: null
+                        material_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        material_names: null
+                        name: robot
+                        pair_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        pair_names: null
+                        preserve_order: false
+                        site_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        site_names: null
+                        tendon_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        tendon_names: null
+                    mass_range:
+                        - 0.9
+                        - 1.1
+                    operation: scale
+            reset_base:
+                func: mjlab.envs.mdp.events.reset_root_state_uniform
+                interval_range_s: null
+                is_global_time: false
+                min_step_count_between_reset: 0
+                mode: reset
+                params:
+                    asset_cfg:
+                        actuator_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        actuator_names: null
+                        body_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        body_names: null
+                        camera_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        camera_names: null
+                        geom_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        geom_names: null
+                        joint_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        joint_names: null
+                        light_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        light_names: null
+                        material_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        material_names: null
+                        name: robot
+                        pair_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        pair_names: null
+                        preserve_order: false
+                        site_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        site_names: null
+                        tendon_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        tendon_names: null
+            reset_cube_pose:
+                func: leap_xela_mjlab.tasks.reorient.mdp.events.reset_cube_pose_uniform_quat
+                interval_range_s: null
+                is_global_time: false
+                min_step_count_between_reset: 0
+                mode: reset
+                params:
+                    asset_cfg:
+                        actuator_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        actuator_names: null
+                        body_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        body_names: null
+                        camera_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        camera_names: null
+                        geom_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        geom_names: null
+                        joint_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        joint_names: null
+                        light_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        light_names: null
+                        material_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        material_names: null
+                        name: cube
+                        pair_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        pair_names: null
+                        preserve_order: false
+                        site_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        site_names: null
+                        tendon_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        tendon_names: null
+                    pose_range:
+                        x:
+                            - -0.01
+                            - 0.01
+                        "y":
+                            - -0.01
+                            - 0.01
+                        z:
+                            - -0.01
+                            - 0.01
+            reset_robot_joints:
+                func: mjlab.envs.mdp.events.reset_joints_by_offset
+                interval_range_s: null
+                is_global_time: false
+                min_step_count_between_reset: 0
+                mode: reset
+                params:
+                    asset_cfg:
+                        actuator_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        actuator_names: null
+                        body_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        body_names: null
+                        camera_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        camera_names: null
+                        geom_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        geom_names: null
+                        joint_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        joint_names:
+                            - .*
+                        light_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        light_names: null
+                        material_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        material_names: null
+                        name: robot
+                        pair_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        pair_names: null
+                        preserve_order: false
+                        site_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        site_names: null
+                        tendon_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        tendon_names: null
+                    position_range:
+                        - -0.1
+                        - 0.1
+                    velocity_range:
+                        - 0
+                        - 0
+        is_finite_horizon: false
+        observations:
+            actor:
+                concatenate_dim: -1
+                concatenate_terms: true
+                enable_corruption: true
+                flatten_history_dim: true
+                history_length: 1
+                nan_check_per_term: true
+                nan_policy: disabled
+                terms:
+                    cube_ori_error:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.cube_ori_error_mat
+                        history_length: 0
+                        noise:
+                            n_max: 0.1
+                            n_min: -0.1
+                            operation: add
+                        params:
+                            command_name: goal_orientation
+                            object_name: cube
+                        scale: null
+                    cube_pos_error:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.cube_pos_error_from_palm
+                        history_length: 0
+                        noise:
+                            n_max: 0.02
+                            n_min: -0.02
+                            operation: add
+                        params:
+                            object_name: cube
+                        scale: null
+                    joint_pos:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.joint_pos_abs
+                        history_length: 0
+                        noise:
+                            n_max: 0.05
+                            n_min: -0.05
+                            operation: add
+                        params:
+                            asset_cfg:
+                                actuator_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                actuator_names: null
+                                body_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                body_names: null
+                                camera_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                camera_names: null
+                                geom_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                geom_names: null
+                                joint_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                joint_names:
+                                    - .*
+                                light_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                light_names: null
+                                material_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                material_names: null
+                                name: robot
+                                pair_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                pair_names: null
+                                preserve_order: false
+                                site_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                site_names: null
+                                tendon_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                tendon_names: null
+                        scale: null
+                    joint_pos_error:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.joint_pos_error_from_command
+                        history_length: 0
+                        noise: null
+                        params:
+                            action_name: joint_pos
+                            asset_cfg:
+                                actuator_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                actuator_names: null
+                                body_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                body_names: null
+                                camera_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                camera_names: null
+                                geom_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                geom_names: null
+                                joint_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                joint_names:
+                                    - .*
+                                light_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                light_names: null
+                                material_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                material_names: null
+                                name: robot
+                                pair_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                pair_names: null
+                                preserve_order: false
+                                site_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                site_names: null
+                                tendon_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                tendon_names: null
+                        scale: null
+                    last_action:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: mjlab.envs.mdp.observations.last_action
+                        history_length: 0
+                        noise: null
+                        scale: null
+            critic:
+                concatenate_dim: -1
+                concatenate_terms: true
+                enable_corruption: false
+                flatten_history_dim: true
+                history_length: 1
+                nan_check_per_term: true
+                nan_policy: disabled
+                terms:
+                    cube_ang_vel:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.cube_ang_vel
+                        history_length: 0
+                        noise: null
+                        params:
+                            object_name: cube
+                        scale: null
+                    cube_lin_vel:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.cube_lin_vel
+                        history_length: 0
+                        noise: null
+                        params:
+                            object_name: cube
+                        scale: null
+                    cube_ori_error:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.cube_ori_error_mat
+                        history_length: 0
+                        noise: null
+                        params:
+                            command_name: goal_orientation
+                            object_name: cube
+                        scale: null
+                    cube_pos_error:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.cube_pos_error_from_palm
+                        history_length: 0
+                        noise: null
+                        params:
+                            object_name: cube
+                        scale: null
+                    fingertip_pos:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.fingertip_positions_rel_palm
+                        history_length: 0
+                        noise: null
+                        scale: null
+                    joint_pos:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.joint_pos_abs
+                        history_length: 0
+                        noise: null
+                        params:
+                            asset_cfg:
+                                actuator_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                actuator_names: null
+                                body_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                body_names: null
+                                camera_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                camera_names: null
+                                geom_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                geom_names: null
+                                joint_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                joint_names:
+                                    - .*
+                                light_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                light_names: null
+                                material_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                material_names: null
+                                name: robot
+                                pair_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                pair_names: null
+                                preserve_order: false
+                                site_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                site_names: null
+                                tendon_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                tendon_names: null
+                        scale: null
+                    joint_pos_error:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.joint_pos_error_from_command
+                        history_length: 0
+                        noise: null
+                        params:
+                            action_name: joint_pos
+                            asset_cfg:
+                                actuator_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                actuator_names: null
+                                body_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                body_names: null
+                                camera_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                camera_names: null
+                                geom_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                geom_names: null
+                                joint_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                joint_names:
+                                    - .*
+                                light_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                light_names: null
+                                material_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                material_names: null
+                                name: robot
+                                pair_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                pair_names: null
+                                preserve_order: false
+                                site_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                site_names: null
+                                tendon_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                tendon_names: null
+                        scale: null
+                    joint_vel:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: leap_xela_mjlab.tasks.reorient.mdp.observations.joint_vel_abs
+                        history_length: 0
+                        noise: null
+                        params:
+                            asset_cfg:
+                                actuator_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                actuator_names: null
+                                body_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                body_names: null
+                                camera_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                camera_names: null
+                                geom_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                geom_names: null
+                                joint_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                joint_names:
+                                    - .*
+                                light_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                light_names: null
+                                material_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                material_names: null
+                                name: robot
+                                pair_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                pair_names: null
+                                preserve_order: false
+                                site_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                site_names: null
+                                tendon_ids:
+                                    slice_start: null
+                                    slice_step: null
+                                    slice_stop: null
+                                tendon_names: null
+                        scale: null
+                    last_action:
+                        clip: null
+                        delay_hold_prob: 0
+                        delay_max_lag: 0
+                        delay_min_lag: 0
+                        delay_per_env: true
+                        delay_per_env_phase: true
+                        delay_update_period: 0
+                        flatten_history_dim: true
+                        func: mjlab.envs.mdp.observations.last_action
+                        history_length: 0
+                        noise: null
+                        scale: null
+        rewards:
+            action_rate:
+                func: leap_xela_mjlab.tasks.reorient.mdp.rewards.action_rate_l2
+                weight: -0.001
+            energy:
+                func: leap_xela_mjlab.tasks.reorient.mdp.rewards.energy_l1
+                params:
+                    asset_cfg:
+                        actuator_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        actuator_names: null
+                        body_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        body_names: null
+                        camera_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        camera_names: null
+                        geom_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        geom_names: null
+                        joint_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        joint_names:
+                            - .*
+                        light_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        light_names: null
+                        material_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        material_names: null
+                        name: robot
+                        pair_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        pair_names: null
+                        preserve_order: false
+                        site_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        site_names: null
+                        tendon_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        tendon_names: null
+                weight: -0.001
+            hand_pose:
+                func: leap_xela_mjlab.tasks.reorient.mdp.rewards.hand_pose_l2_from_default
+                params:
+                    asset_cfg:
+                        actuator_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        actuator_names: null
+                        body_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        body_names: null
+                        camera_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        camera_names: null
+                        geom_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        geom_names: null
+                        joint_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        joint_names:
+                            - .*
+                        light_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        light_names: null
+                        material_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        material_names: null
+                        name: robot
+                        pair_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        pair_names: null
+                        preserve_order: false
+                        site_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        site_names: null
+                        tendon_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        tendon_names: null
+                weight: -0.5
+            joint_vel:
+                func: leap_xela_mjlab.tasks.reorient.mdp.rewards.joint_vel_l2
+                params:
+                    asset_cfg:
+                        actuator_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        actuator_names: null
+                        body_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        body_names: null
+                        camera_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        camera_names: null
+                        geom_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        geom_names: null
+                        joint_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        joint_names:
+                            - .*
+                        light_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        light_names: null
+                        material_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        material_names: null
+                        name: robot
+                        pair_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        pair_names: null
+                        preserve_order: false
+                        site_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        site_names: null
+                        tendon_ids:
+                            slice_start: null
+                            slice_step: null
+                            slice_stop: null
+                        tendon_names: null
+                weight: 0
+            orientation:
+                func: leap_xela_mjlab.tasks.reorient.mdp.rewards.cube_orientation_tolerance
+                params:
+                    command_name: goal_orientation
+                    object_name: cube
+                weight: 5
+            position:
+                func: leap_xela_mjlab.tasks.reorient.mdp.rewards.cube_position_tolerance
+                params:
+                    object_name: cube
+                weight: 0.5
+            success:
+                func: leap_xela_mjlab.tasks.reorient.mdp.rewards.success_bonus
+                params:
+                    command_name: goal_orientation
+                    object_name: cube
+                    success_threshold: 0.1
+                weight: 100
+            termination:
+                func: leap_xela_mjlab.tasks.reorient.mdp.rewards.termination_penalty
+                weight: -100
+        scale_rewards_by_dt: true
+        scene:
+            entities:
+                cube:
+                    articulation: null
+                    cameras: []
+                    collisions: []
+                    init_state:
+                        ang_vel:
+                            - 0
+                            - 0
+                            - 0
+                        joint_pos:
+                            .*: 0
+                        joint_vel:
+                            .*: 0
+                        lin_vel:
+                            - 0
+                            - 0
+                            - 0
+                        pos:
+                            - 0.1
+                            - 0
+                            - 0.3
+                        rot:
+                            - 1
+                            - 0
+                            - 0
+                            - 0
+                    lights: []
+                    materials: []
+                    meshes: []
+                    sort_actuators: false
+                    spec_fn: leap_xela_mjlab.robots.cube.get_cube_cfg.<locals>._spec_fn
+                    textures: []
+                goal:
+                    articulation: null
+                    cameras: []
+                    collisions: []
+                    init_state:
+                        ang_vel:
+                            - 0
+                            - 0
+                            - 0
+                        joint_pos:
+                            .*: 0
+                        joint_vel:
+                            .*: 0
+                        lin_vel:
+                            - 0
+                            - 0
+                            - 0
+                        pos:
+                            - 0.325
+                            - 0.17
+                            - 0.2975
+                        rot:
+                            - 1
+                            - 0
+                            - 0
+                            - 0
+                    lights: []
+                    materials: []
+                    meshes: []
+                    sort_actuators: false
+                    spec_fn: leap_xela_mjlab.robots.cube.get_goal_cube_cfg.<locals>._spec_fn
+                    textures: []
+                robot:
+                    articulation:
+                        actuators:
+                            - armature: null
+                              command_field: null
+                              delay_hold_prob: 0
+                              delay_max_lag: 0
+                              delay_min_lag: 0
+                              delay_per_env_phase: true
+                              delay_update_period: 0
+                              frictionloss: null
+                              target_names_expr:
+                                - if_mcp
+                                - if_rot
+                                - if_pip
+                                - if_dip
+                                - mf_mcp
+                                - mf_rot
+                                - mf_pip
+                                - mf_dip
+                                - rf_mcp
+                                - rf_rot
+                                - rf_pip
+                                - rf_dip
+                                - th_cmc
+                                - th_axl
+                                - th_mcp
+                                - th_ipl
+                              transmission_type: JOINT
+                              viscous_damping: null
+                        soft_joint_pos_limit_factor: 1
+                    cameras: []
+                    collisions: []
+                    init_state:
+                        ang_vel:
+                            - 0
+                            - 0
+                            - 0
+                        joint_pos:
+                            if_dip: 0.8
+                            if_mcp: 0.8
+                            if_pip: 0.8
+                            if_rot: 0
+                            mf_dip: 0.8
+                            mf_mcp: 0.8
+                            mf_pip: 0.8
+                            mf_rot: 0
+                            rf_dip: 0.8
+                            rf_mcp: 0.8
+                            rf_pip: 0.8
+                            rf_rot: 0
+                            th_axl: 0.8
+                            th_cmc: 0.8
+                            th_ipl: 0
+                            th_mcp: 0.8
+                        joint_vel:
+                            .*: 0
+                        lin_vel:
+                            - 0
+                            - 0
+                            - 0
+                        pos:
+                            - 0
+                            - 0
+                            - 0.25
+                        rot:
+                            - 1
+                            - 0
+                            - 0
+                            - 0
+                    lights: []
+                    materials: []
+                    meshes: []
+                    sort_actuators: false
+                    spec_fn: leap_xela_mjlab.robots.leap_xela.get_leap_xela_cfg.<locals>._spec_fn
+                    textures: []
+            env_spacing: 0.6
+            extent: null
+            num_envs: 4096
+            sensors: []
+            spec_fn: null
+            terrain:
+                articulation: null
+                cameras: []
+                collisions: []
+                debug_vis: false
+                env_spacing: 0.6
+                init_state:
+                    ang_vel:
+                        - 0
+                        - 0
+                        - 0
+                    joint_pos:
+                        .*: 0
+                    joint_vel:
+                        .*: 0
+                    lin_vel:
+                        - 0
+                        - 0
+                        - 0
+                    pos:
+                        - 0
+                        - 0
+                        - 0
+                    rot:
+                        - 1
+                        - 0
+                        - 0
+                        - 0
+                lights:
+                    - active: true
+                      ambient: null
+                      attenuation:
+                        - 1
+                        - 0
+                        - 0
+                      body: world
+                      castshadow: true
+                      cutoff: 45
+                      diffuse: null
+                      dir:
+                        - 0
+                        - 0
+                        - -1
+                      exponent: 10
+                      mode: fixed
+                      name: sun
+                      pos:
+                        - 0
+                        - 0
+                        - 1.5
+                      specular: null
+                      target: null
+                      type: directional
+                materials:
+                    - geom_names_expr:
+                        - terrain$
+                      name: groundplane
+                      reflectance: 0.2
+                      rgba:
+                        - 1
+                        - 1
+                        - 1
+                        - 1
+                      texrepeat:
+                        - 4
+                        - 4
+                      texture: groundplane
+                      texuniform: true
+                max_init_terrain_level: null
+                meshes: []
+                num_envs: 4096
+                sort_actuators: false
+                spec_fn: mjlab.entity.entity.EntityCfg.<lambda>.<locals>.<lambda>
+                terrain_generator: null
+                terrain_type: plane
+                textures:
+                    - builtin: checker
+                      height: 300
+                      mark: edge
+                      markrgb:
+                        - 0.8
+                        - 0.8
+                        - 0.8
+                      name: groundplane
+                      rgb1:
+                        - 0.2
+                        - 0.3
+                        - 0.4
+                      rgb2:
+                        - 0.1
+                        - 0.2
+                        - 0.3
+                      type: 2d
+                      width: 300
+        seed: 1
+        sim:
+            broadphase: null
+            broadphase_filter: null
+            contact_sensor_maxmatch: 64
+            ls_parallel: null
+            mujoco:
+                ccd_iterations: 50
+                cone: pyramidal
+                disableflags: []
+                enableflags: []
+                gravity:
+                    - 0
+                    - 0
+                    - -9.81
+                impratio: 1
+                integrator: euler
+                iterations: 5
+                jacobian: auto
+                ls_iterations: 8
+                ls_tolerance: 0.01
+                solver: newton
+                timestep: 0.01
+                tolerance: 1e-08
+            nan_guard:
+                buffer_size: 100
+                enabled: false
+                max_envs_to_dump: 5
+                output_dir: /tmp/mjlab/nan_dumps
+            nconmax: 48
+            njmax: null
+        terminations:
+            cube_fell:
+                func: leap_xela_mjlab.tasks.reorient.mdp.terminations.cube_fell_below
+                params:
+                    minimum_height: 0.2
+                    object_name: cube
+                time_out: false
+            nan:
+                func: mjlab.envs.mdp.terminations.nan_detection
+                time_out: false
+            time_out:
+                func: mjlab.envs.mdp.terminations.time_out
+                time_out: true
+        viewer:
+            azimuth: 120
+            body_name: palm
+            distance: 0.55
+            elevation: -20
+            enable_reflections: true
+            enable_shadows: true
+            entity_name: robot
+            env_idx: 0
+            fovy: null
+            height: 240
+            lookat:
+                - 0
+                - 0
+                - 0
+            max_extra_envs: 2
+            origin_type: ASSET_BODY
+            reward_bar_max_terms: 20
+            width: 320
+log_dir:
+    value: logs/rsl_rl/leap_xela_cube_reorient/2026-07-28_13-44-37_hs0.0350_mu0.049_tz0.050_sc1.00_s1
+train_cfg:
+    value:
+        actor:
+            activation: elu
+            distribution_cfg:
+                init_std: 1
+                std_type: scalar
+            hidden_dims:
+                - 512
+                - 256
+                - 128
+            obs_normalization: true
+        algorithm:
+            clip_param: 0.2
+            desired_kl: 0.01
+            entropy_coef: 0.01
+            gamma: 0.99
+            lam: 0.95
+            learning_rate: 0.0003
+            max_grad_norm: 1
+            normalize_advantage_per_mini_batch: false
+            num_learning_epochs: 5
+            num_mini_batches: 4
+            optimizer: adam
+            rnd_cfg: null
+            schedule: adaptive
+            symmetry_cfg: null
+            use_clipped_value_loss: true
+            value_loss_coef: 1
+        class_name: OnPolicyRunner
+        clip_actions: null
+        critic:
+            activation: elu
+            hidden_dims:
+                - 512
+                - 256
+                - 128
+            obs_normalization: true
+        experiment_name: leap_xela_cube_reorient
+        load_checkpoint: model_.*.pt
+        load_run: .*
+        logger: wandb
+        max_iterations: 10000
+        multi_gpu: null
+        num_steps_per_env: 24
+        obs_groups:
+            actor:
+                - actor
+            critic:
+                - critic
+        resume: false
+        run_name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+        save_interval: 100
+        seed: 1
+        upload_model: false
+        wandb_project: leap_xela_hparam_search
+        wandb_tags:
+            - hyperparameter_search

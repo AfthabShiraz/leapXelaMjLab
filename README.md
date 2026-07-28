@@ -95,11 +95,82 @@ Optional flags:
 | `--max-iterations N` | PPO learning iterations |
 | `--seed N` | RNG seed (default `42`; each rank uses `seed + rank`) |
 | `--gpu-ids "[0]"` | GPUs to use (`"[0, 1]"`, `all`, or `None` for CPU) |
+| `--cube-half-size F` | Cube collision half-extent (m); disables cube friction DR |
+| `--cube-friction-sliding F` | Cube sliding friction (axis 0) |
+| `--cube-friction-torsional F` | Cube torsional friction (axis 1) |
+| `--run-name NAME` | WandB run name and log subdirectory label |
+| `--wandb-project NAME` | WandB project (default from RL config: `mjlab`) |
 
 Checkpoints and configs are written under:
 
 ```text
 logs/rsl_rl/<experiment_name>/<YYYY-MM-DD_HH-MM-SS>/
+```
+
+Training metrics are logged to [WandB](https://wandb.ai) by default (`logger=wandb` in
+`rl_cfg.py`). Set `WANDB_API_KEY` in `.env` at the project root (loaded automatically by
+`train.py` and `run_sweep.py`), or log in with `wandb login`.
+
+## Hyperparameter search
+
+Grid search over cube size and friction (plus seeds), with each run trained via
+`scripts/train.py` and logged to WandB.
+
+```bash
+# Run the sweep defined in hyperparameter_search/config.yaml
+uv run python hyperparameter_search/run_sweep.py
+
+# Custom config path
+uv run python hyperparameter_search/run_sweep.py --config path/to/config.yaml
+```
+
+Edit `hyperparameter_search/config.yaml` to define the grid. List values are expanded
+in a Cartesian product; scalars are fixed for every run:
+
+```yaml
+task_id: Mjlab-LeapXELA-Cube-Reorient
+num_envs: 4096
+max_iterations: 10000          # screening budget; full training default is 100_000
+wandb_project: leap_xela_hparam_search
+upload_model: false            # metrics only (no checkpoint uploads to WandB)
+gpu_ids: [0]
+
+cube_half_size: 0.035          # base half-extent (m)
+cube_scale: [1.0]               # effective half-size = cube_half_size × scale
+cube_friction:
+  sliding: [0.049, 0.3]         # swept sliding friction
+  torsional: 0.05               # fixed torsional friction
+seed: [1, 2, 3]
+best_metric: Train/mean_reward   # metric maximized to pick the winner
+```
+
+After all runs finish, results are written to `hyperparameter_search/best_run.yaml`
+(same directory as the config file). It contains the winning hyperparameters,
+`best_metric_value`, log/WandB run ids, and a summary row per grid point.
+
+Each grid point:
+
+- Sets cube size/friction at build time (visual mesh and collision stay matched).
+- Turns off cube friction domain randomization so the configured friction is fixed.
+- Scales cube mass with volume when size changes.
+- Names the WandB run like `hs0.0350_mu0.049_tz0.050_sc1.00_s1`.
+
+**Choosing `max_iterations`:** there is no universal cutoff. Use short runs to screen
+obviously bad settings, then train top candidates to the full `100_000` iterations
+from `rl_cfg.py`. Compare learning curves in WandB; if reward is still rising at the
+sweep budget, rankings may change if you train longer. Use multiple seeds (as above)
+to reduce noise.
+
+Single trial without the sweep script:
+
+```bash
+uv run python scripts/train.py Mjlab-LeapXELA-Cube-Reorient \
+  --num-envs 4096 \
+  --cube-half-size 0.035 \
+  --cube-friction-sliding 0.3 \
+  --cube-friction-torsional 0.05 \
+  --run-name my_trial \
+  --wandb-project leap_xela_hparam_search
 ```
 
 ## Layout
@@ -116,6 +187,9 @@ leapXelaMjLab/
   scripts/train.py
   scripts/play.py
   scripts/list_envs.py
+  hyperparameter_search/
+    config.yaml                # sweep grid + training defaults
+    run_sweep.py               # grid runner → train.py + WandB
 ```
 
 ## Mapping from MJX

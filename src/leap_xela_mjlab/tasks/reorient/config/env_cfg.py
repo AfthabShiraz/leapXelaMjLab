@@ -27,11 +27,25 @@ from leap_xela_mjlab.robots.leap_xela import JOINT_NAMES, get_leap_xela_cfg
 from leap_xela_mjlab.tasks.reorient import mdp as reorient_mdp
 
 
+_DEFAULT_CUBE_HALF_SIZE = 0.0385
+_DEFAULT_CUBE_MASS = 0.108
+
+
+def _cube_mass_for_half_size(half_size: float) -> float:
+  scale = half_size / _DEFAULT_CUBE_HALF_SIZE
+  return _DEFAULT_CUBE_MASS * scale**3
+
+
 def make_reorient_env_cfg(
   *,
   finger_tip_type: str = "Box",
   play: bool = False,
   enable_perturbations: bool = False,
+  cube_half_size: float = _DEFAULT_CUBE_HALF_SIZE,
+  cube_mass: float | None = None,
+  cube_friction_sliding: float = 0.3,
+  cube_friction_torsional: float = 0.05,
+  disable_cube_friction_dr: bool = False,
 ) -> ManagerBasedRlEnvCfg:
   robot_cfg = SceneEntityCfg("robot", joint_names=(".*",))
 
@@ -207,6 +221,9 @@ def make_reorient_env_cfg(
     ),
   }
 
+  if disable_cube_friction_dr:
+    events.pop("dr_cube_friction", None)
+
   if enable_perturbations:
     events["cube_velocity_pert"] = EventTermCfg(
       func=reorient_mdp.apply_cube_velocity_perturbation,
@@ -276,17 +293,21 @@ def make_reorient_env_cfg(
     "nan": TerminationTermCfg(func=envs_mdp.nan_detection),
   }
 
+  if cube_mass is None:
+    cube_mass = _cube_mass_for_half_size(cube_half_size)
+
   cfg = ManagerBasedRlEnvCfg(
     scene=SceneCfg(
       terrain=TerrainEntityCfg(terrain_type="plane"),
       entities={
         "robot": get_leap_xela_cfg(finger_tip_type=finger_tip_type),
         "cube": get_cube_cfg(
-          half_size=0.0385,
-          mass=0.108,
-          friction=0.3,
+          half_size=cube_half_size,
+          mass=cube_mass,
+          friction_sliding=cube_friction_sliding,
+          friction_torsional=cube_friction_torsional,
         ),
-        "goal": get_goal_cube_cfg(),
+        "goal": get_goal_cube_cfg(half_size=cube_half_size),
       },
       num_envs=1,
       env_spacing=0.6,
@@ -307,7 +328,8 @@ def make_reorient_env_cfg(
     ),
     sim=SimulationCfg(
       nconmax=48,
-      njmax=None,
+      # Hand+cube contacts exceed mjwarp's default heuristic (~64 nefc); seen overflows at ~80.
+      njmax=120,
       mujoco=MujocoCfg(
         timestep=0.01,
         iterations=5,

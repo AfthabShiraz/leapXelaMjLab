@@ -1,0 +1,21 @@
+# Task and training defaults (shared across all grid points).
+task_id: Mjlab-LeapXELA-Cube-Reorient
+num_envs: 4096
+max_iterations: 10000
+wandb_project: leap_xela_hparam_search
+wandb_tags: [hyperparameter_search]
+upload_model: false
+gpu_ids: [0]
+
+# Metric used to pick the best run (maximize). Logged by rsl_rl to WandB.
+best_metric: Train/mean_reward
+
+# Base cube half-extent (m). Effective size = cube_half_size * cube_scale.
+cube_half_size: 0.035
+
+# Grid axes (lists are expanded; scalars are fixed).
+cube_scale: [1.0]
+cube_friction:
+  sliding: [0.049, 0.3]
+  torsional: 0.05
+seed: [1, 2, 3]

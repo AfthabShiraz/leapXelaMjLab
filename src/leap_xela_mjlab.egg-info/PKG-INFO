@@ -8,5 +8,7 @@ Requires-Dist: mujoco>=3.3.0
 Requires-Dist: torch
 Requires-Dist: tyro
 Requires-Dist: prettytable
+Requires-Dist: pyyaml
+Requires-Dist: python-dotenv
 Provides-Extra: dev
 Requires-Dist: ruff; extra == "dev"

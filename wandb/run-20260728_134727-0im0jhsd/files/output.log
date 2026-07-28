@@ -1,0 +1,639 @@
+Storing git diff for 'leapXelaMjLab' in: logs/rsl_rl/leap_xela_cube_reorient/2026-07-28_13-47-24_hs0.0350_mu0.049_tz0.050_sc1.00_s1/git/leapXelaMjLab.diff
+[34m[1mwandb[0m: [33mWARNING[0m Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+################################################################################
+[1m                           Learning iteration 0/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 98304
+                       Steps per second: 74970
+                        Collection time: 1.090s
+                          Learning time: 0.222s
+                        Mean value loss: 1.3962
+                    Mean surrogate loss: -0.0075
+                      Mean entropy loss: 22.7484
+                            Mean reward: -3.19
+                    Mean episode length: 22.89
+                        Mean action std: 1.01
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.1591
+                Episode_Reward/position: 0.0031
+Metrics/goal_orientation/consecutive_success: 0.0007
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0002
+             Episode_Reward/termination: -0.0718
+          Episode_Termination/cube_fell: 26.9583
+                 Episode_Reward/success: 0.0001
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 3.7083
+             Episode_Reward/action_rate: -0.0015
+               Episode_Reward/hand_pose: -0.0060
+             Episode_Reward/orientation: 0.0231
+--------------------------------------------------------------------------------
+                         Iteration time: 1.31s
+                           Time elapsed: 0:00:01
+                                    ETA: 3:38:31
+
+################################################################################
+[1m                           Learning iteration 1/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 196608
+                       Steps per second: 183971
+                        Collection time: 0.457s
+                          Learning time: 0.078s
+                        Mean value loss: 1.8940
+                    Mean surrogate loss: -0.0070
+                      Mean entropy loss: 22.8698
+                            Mean reward: -2.85
+                    Mean episode length: 39.74
+                        Mean action std: 1.01
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.2147
+                Episode_Reward/position: 0.0095
+Metrics/goal_orientation/consecutive_success: 0.0016
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0006
+             Episode_Reward/termination: -0.0949
+          Episode_Termination/cube_fell: 54.7083
+                 Episode_Reward/success: 0.0002
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 2.9167
+             Episode_Reward/action_rate: -0.0042
+               Episode_Reward/hand_pose: -0.0309
+             Episode_Reward/orientation: 0.0589
+--------------------------------------------------------------------------------
+                         Iteration time: 0.53s
+                           Time elapsed: 0:00:01
+                                    ETA: 2:33:46
+
+################################################################################
+[1m                           Learning iteration 2/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 294912
+                       Steps per second: 179242
+                        Collection time: 0.471s
+                          Learning time: 0.078s
+                        Mean value loss: 1.4698
+                    Mean surrogate loss: -0.0068
+                      Mean entropy loss: 22.9756
+                            Mean reward: -2.81
+                    Mean episode length: 54.92
+                        Mean action std: 1.02
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.2349
+                Episode_Reward/position: 0.0150
+Metrics/goal_orientation/consecutive_success: 0.0008
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0009
+             Episode_Reward/termination: -0.0958
+          Episode_Termination/cube_fell: 49.5833
+                 Episode_Reward/success: 0.0002
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 2.2500
+             Episode_Reward/action_rate: -0.0061
+               Episode_Reward/hand_pose: -0.0549
+             Episode_Reward/orientation: 0.0880
+--------------------------------------------------------------------------------
+                         Iteration time: 0.55s
+                           Time elapsed: 0:00:02
+                                    ETA: 2:12:57
+
+################################################################################
+[1m                           Learning iteration 3/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 393216
+                       Steps per second: 182209
+                        Collection time: 0.455s
+                          Learning time: 0.085s
+                        Mean value loss: 1.0811
+                    Mean surrogate loss: -0.0081
+                      Mean entropy loss: 23.1203
+                            Mean reward: -2.24
+                    Mean episode length: 63.68
+                        Mean action std: 1.03
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.2139
+                Episode_Reward/position: 0.0192
+Metrics/goal_orientation/consecutive_success: 0.0020
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0011
+             Episode_Reward/termination: -0.0963
+          Episode_Termination/cube_fell: 39.6667
+                 Episode_Reward/success: 0.0003
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 1.5000
+             Episode_Reward/action_rate: -0.0075
+               Episode_Reward/hand_pose: -0.0718
+             Episode_Reward/orientation: 0.1046
+--------------------------------------------------------------------------------
+                         Iteration time: 0.54s
+                           Time elapsed: 0:00:02
+                                    ETA: 2:02:10
+
+################################################################################
+[1m                           Learning iteration 4/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 491520
+                       Steps per second: 180116
+                        Collection time: 0.464s
+                          Learning time: 0.082s
+                        Mean value loss: 0.8720
+                    Mean surrogate loss: -0.0097
+                      Mean entropy loss: 23.2452
+                            Mean reward: -2.51
+                    Mean episode length: 71.69
+                        Mean action std: 1.04
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.2190
+                Episode_Reward/position: 0.0218
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0013
+             Episode_Reward/termination: -0.0973
+          Episode_Termination/cube_fell: 38.3750
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 1.0417
+             Episode_Reward/action_rate: -0.0085
+               Episode_Reward/hand_pose: -0.0826
+             Episode_Reward/orientation: 0.1152
+--------------------------------------------------------------------------------
+                         Iteration time: 0.55s
+                           Time elapsed: 0:00:03
+                                    ETA: 1:55:55
+
+################################################################################
+[1m                           Learning iteration 5/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 589824
+                       Steps per second: 175445
+                        Collection time: 0.475s
+                          Learning time: 0.085s
+                        Mean value loss: 0.7187
+                    Mean surrogate loss: -0.0092
+                      Mean entropy loss: 23.3376
+                            Mean reward: -1.46
+                    Mean episode length: 80.53
+                        Mean action std: 1.04
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.1964
+                Episode_Reward/position: 0.0255
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0015
+             Episode_Reward/termination: -0.0978
+          Episode_Termination/cube_fell: 30.9167
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.7083
+             Episode_Reward/action_rate: -0.0099
+               Episode_Reward/hand_pose: -0.0958
+             Episode_Reward/orientation: 0.1450
+--------------------------------------------------------------------------------
+                         Iteration time: 0.56s
+                           Time elapsed: 0:00:04
+                                    ETA: 1:52:08
+
+################################################################################
+[1m                           Learning iteration 6/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 688128
+                       Steps per second: 178771
+                        Collection time: 0.462s
+                          Learning time: 0.087s
+                        Mean value loss: 0.5727
+                    Mean surrogate loss: -0.0098
+                      Mean entropy loss: 23.4058
+                            Mean reward: -1.95
+                    Mean episode length: 90.44
+                        Mean action std: 1.05
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.2033
+                Episode_Reward/position: 0.0299
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0017
+             Episode_Reward/termination: -0.0951
+          Episode_Termination/cube_fell: 21.8333
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 1.2083
+             Episode_Reward/action_rate: -0.0115
+               Episode_Reward/hand_pose: -0.1095
+             Episode_Reward/orientation: 0.1589
+--------------------------------------------------------------------------------
+                         Iteration time: 0.55s
+                           Time elapsed: 0:00:04
+                                    ETA: 1:49:11
+
+################################################################################
+[1m                           Learning iteration 7/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 786432
+                       Steps per second: 178608
+                        Collection time: 0.463s
+                          Learning time: 0.088s
+                        Mean value loss: 0.5268
+                    Mean surrogate loss: -0.0095
+                      Mean entropy loss: 23.4514
+                            Mean reward: -0.95
+                    Mean episode length: 108.85
+                        Mean action std: 1.05
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.1835
+                Episode_Reward/position: 0.0333
+Metrics/goal_orientation/consecutive_success: 0.0038
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0019
+             Episode_Reward/termination: -0.0981
+          Episode_Termination/cube_fell: 16.8750
+                 Episode_Reward/success: 0.0004
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.3333
+             Episode_Reward/action_rate: -0.0131
+               Episode_Reward/hand_pose: -0.1202
+             Episode_Reward/orientation: 0.1801
+--------------------------------------------------------------------------------
+                         Iteration time: 0.55s
+                           Time elapsed: 0:00:05
+                                    ETA: 1:46:59
+
+################################################################################
+[1m                           Learning iteration 8/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 884736
+                       Steps per second: 176324
+                        Collection time: 0.460s
+                          Learning time: 0.097s
+                        Mean value loss: 0.5052
+                    Mean surrogate loss: -0.0076
+                      Mean entropy loss: 23.4882
+                            Mean reward: 1.08
+                    Mean episode length: 120.92
+                        Mean action std: 1.05
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.1925
+                Episode_Reward/position: 0.0397
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0023
+             Episode_Reward/termination: -0.0953
+          Episode_Termination/cube_fell: 13.0000
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.6667
+             Episode_Reward/action_rate: -0.0154
+               Episode_Reward/hand_pose: -0.1429
+             Episode_Reward/orientation: 0.2182
+--------------------------------------------------------------------------------
+                         Iteration time: 0.56s
+                           Time elapsed: 0:00:05
+                                    ETA: 1:45:24
+
+################################################################################
+[1m                           Learning iteration 9/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 983040
+                       Steps per second: 181310
+                        Collection time: 0.458s
+                          Learning time: 0.084s
+                        Mean value loss: 0.4459
+                    Mean surrogate loss: -0.0079
+                      Mean entropy loss: 23.5379
+                            Mean reward: 1.68
+                    Mean episode length: 139.26
+                        Mean action std: 1.05
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.1313
+                Episode_Reward/position: 0.0466
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0026
+             Episode_Reward/termination: -0.0899
+          Episode_Termination/cube_fell: 7.7500
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.8750
+             Episode_Reward/action_rate: -0.0179
+               Episode_Reward/hand_pose: -0.1580
+             Episode_Reward/orientation: 0.2473
+--------------------------------------------------------------------------------
+                         Iteration time: 0.54s
+                           Time elapsed: 0:00:06
+                                    ETA: 1:43:53
+
+################################################################################
+[1m                          Learning iteration 10/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 1081344
+                       Steps per second: 175715
+                        Collection time: 0.472s
+                          Learning time: 0.087s
+                        Mean value loss: 0.3937
+                    Mean surrogate loss: -0.0086
+                      Mean entropy loss: 23.6059
+                            Mean reward: 2.72
+                    Mean episode length: 152.23
+                        Mean action std: 1.06
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.0792
+                Episode_Reward/position: 0.0531
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0029
+             Episode_Reward/termination: -0.0867
+          Episode_Termination/cube_fell: 4.8750
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.7917
+             Episode_Reward/action_rate: -0.0204
+               Episode_Reward/hand_pose: -0.1784
+             Episode_Reward/orientation: 0.2831
+--------------------------------------------------------------------------------
+                         Iteration time: 0.56s
+                           Time elapsed: 0:00:06
+                                    ETA: 1:42:54
+
+################################################################################
+[1m                          Learning iteration 11/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 1179648
+                       Steps per second: 172606
+                        Collection time: 0.478s
+                          Learning time: 0.092s
+                        Mean value loss: 0.3804
+                    Mean surrogate loss: -0.0086
+                      Mean entropy loss: 23.7029
+                            Mean reward: 4.53
+                    Mean episode length: 174.46
+                        Mean action std: 1.07
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.1032
+                Episode_Reward/position: 0.0647
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0035
+             Episode_Reward/termination: -0.0915
+          Episode_Termination/cube_fell: 3.5833
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.4583
+             Episode_Reward/action_rate: -0.0247
+               Episode_Reward/hand_pose: -0.2112
+             Episode_Reward/orientation: 0.3827
+--------------------------------------------------------------------------------
+                         Iteration time: 0.57s
+                           Time elapsed: 0:00:07
+                                    ETA: 1:42:13
+
+################################################################################
+[1m                          Learning iteration 12/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 1277952
+                       Steps per second: 183617
+                        Collection time: 0.457s
+                          Learning time: 0.079s
+                        Mean value loss: 0.3534
+                    Mean surrogate loss: -0.0079
+                      Mean entropy loss: 23.7862
+                            Mean reward: 4.81
+                    Mean episode length: 188.08
+                        Mean action std: 1.07
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.2742
+                Episode_Reward/position: 0.0713
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0038
+             Episode_Reward/termination: -0.0821
+          Episode_Termination/cube_fell: 2.9130
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.7391
+             Episode_Reward/action_rate: -0.0268
+               Episode_Reward/hand_pose: -0.2212
+             Episode_Reward/orientation: 0.3412
+--------------------------------------------------------------------------------
+                         Iteration time: 0.54s
+                           Time elapsed: 0:00:07
+                                    ETA: 1:41:12
+
+################################################################################
+[1m                          Learning iteration 13/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 1376256
+                       Steps per second: 184965
+                        Collection time: 0.440s
+                          Learning time: 0.091s
+                        Mean value loss: 0.3582
+                    Mean surrogate loss: -0.0079
+                      Mean entropy loss: 23.8583
+                            Mean reward: 6.23
+                    Mean episode length: 211.08
+                        Mean action std: 1.08
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.0313
+                Episode_Reward/position: 0.0863
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0045
+             Episode_Reward/termination: -0.0726
+          Episode_Termination/cube_fell: 1.8000
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.6500
+             Episode_Reward/action_rate: -0.0321
+               Episode_Reward/hand_pose: -0.2599
+             Episode_Reward/orientation: 0.4550
+--------------------------------------------------------------------------------
+                         Iteration time: 0.53s
+                           Time elapsed: 0:00:08
+                                    ETA: 1:40:16
+
+################################################################################
+[1m                          Learning iteration 14/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 1474560
+                       Steps per second: 182833
+                        Collection time: 0.457s
+                          Learning time: 0.080s
+                        Mean value loss: 0.3181
+                    Mean surrogate loss: -0.0073
+                      Mean entropy loss: 23.9342
+                            Mean reward: 10.07
+                    Mean episode length: 236.93
+                        Mean action std: 1.08
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 1.9738
+                Episode_Reward/position: 0.1008
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0050
+             Episode_Reward/termination: -0.0742
+          Episode_Termination/cube_fell: 1.5455
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.4545
+             Episode_Reward/action_rate: -0.0359
+               Episode_Reward/hand_pose: -0.2733
+             Episode_Reward/orientation: 0.5593
+--------------------------------------------------------------------------------
+                         Iteration time: 0.54s
+                           Time elapsed: 0:00:08
+                                    ETA: 1:39:33
+
+################################################################################
+[1m                          Learning iteration 15/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 1572864
+                       Steps per second: 189269
+                        Collection time: 0.440s
+                          Learning time: 0.079s
+                        Mean value loss: 0.3113
+                    Mean surrogate loss: -0.0067
+                      Mean entropy loss: 24.0066
+                            Mean reward: 11.29
+                    Mean episode length: 274.57
+                        Mean action std: 1.09
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.1381
+                Episode_Reward/position: 0.1147
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0059
+             Episode_Reward/termination: -0.0621
+          Episode_Termination/cube_fell: 1.2000
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.6500
+             Episode_Reward/action_rate: -0.0423
+               Episode_Reward/hand_pose: -0.3294
+             Episode_Reward/orientation: 0.4930
+--------------------------------------------------------------------------------
+                         Iteration time: 0.52s
+                           Time elapsed: 0:00:09
+                                    ETA: 1:38:43
+
+################################################################################
+[1m                          Learning iteration 16/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 1671168
+                       Steps per second: 196981
+                        Collection time: 0.421s
+                          Learning time: 0.078s
+                        Mean value loss: 0.2897
+                    Mean surrogate loss: -0.0067
+                      Mean entropy loss: 24.0870
+                            Mean reward: 12.31
+                    Mean episode length: 297.67
+                        Mean action std: 1.09
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 1.9841
+                Episode_Reward/position: 0.1335
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0066
+             Episode_Reward/termination: -0.0526
+          Episode_Termination/cube_fell: 1.0625
+                 Episode_Reward/success: 0.0062
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.8750
+             Episode_Reward/action_rate: -0.0469
+               Episode_Reward/hand_pose: -0.3593
+             Episode_Reward/orientation: 0.6199
+--------------------------------------------------------------------------------
+                         Iteration time: 0.50s
+                           Time elapsed: 0:00:09
+                                    ETA: 1:37:47
+
+################################################################################
+[1m                          Learning iteration 17/10000                           [0m
+
+                               Run name: hs0.0350_mu0.049_tz0.050_sc1.00_s1
+                            Total steps: 1769472
+                       Steps per second: 187238
+                        Collection time: 0.431s
+                          Learning time: 0.094s
+                        Mean value loss: 0.3286
+                    Mean surrogate loss: -0.0078
+                      Mean entropy loss: 24.1522
+                            Mean reward: 11.32
+                    Mean episode length: 320.86
+                        Mean action std: 1.10
+       Metrics/goal_orientation/success: 0.0000
+Metrics/goal_orientation/orientation_error: 2.4192
+                Episode_Reward/position: 0.1286
+Metrics/goal_orientation/consecutive_success: 0.0000
+               Episode_Reward/joint_vel: 0.0000
+                  Episode_Reward/energy: -0.0063
+             Episode_Reward/termination: -0.0556
+          Episode_Termination/cube_fell: 1.2778
+                 Episode_Reward/success: 0.0000
+                Episode_Termination/nan: 0.0000
+           Episode_Termination/time_out: 0.7778
+             Episode_Reward/action_rate: -0.0458
+               Episode_Reward/hand_pose: -0.3262
+             Episode_Reward/orientation: 0.5265
+--------------------------------------------------------------------------------
+                         Iteration time: 0.53s
+                           Time elapsed: 0:00:10
+                                    ETA: 1:37:12
+Traceback (most recent call last):
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/hyperparameter_search/run_sweep.py", line 124, in <module>
+    main()
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/hyperparameter_search/run_sweep.py", line 120, in main
+    run_sweep(args.config.resolve())
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/hyperparameter_search/run_sweep.py", line 108, in run_sweep
+    launch_training(task_id, train_cfg)
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/scripts/train.py", line 182, in launch_training
+    run_train(task_id, args, log_dir)
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/scripts/train.py", line 155, in run_train
+    runner.learn(
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/lib/python3.10/site-packages/rsl_rl/runners/on_policy_runner.py", line 87, in learn
+    obs, rewards, dones, extras = self.env.step(actions.to(self.env.device))
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/lib/python3.10/site-packages/mjlab/rl/vecenv_wrapper.py", line 77, in step
+    obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/lib/python3.10/site-packages/mjlab/envs/manager_based_rl_env.py", line 419, in step
+    self.action_manager.process_action(action.to(self.device))
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/lib/python3.10/site-packages/mjlab/managers/action_manager.py", line 174, in process_action
+    term.process_actions(term_actions)
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/src/leap_xela_mjlab/tasks/reorient/mdp/actions.py", line 80, in process_actions
+    lower, upper = self._limits(slice(None))
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/hyperparameter_search/run_sweep.py", line 124, in <module>
+    main()
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/hyperparameter_search/run_sweep.py", line 120, in main
+    run_sweep(args.config.resolve())
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/hyperparameter_search/run_sweep.py", line 108, in run_sweep
+    launch_training(task_id, train_cfg)
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/scripts/train.py", line 182, in launch_training
+    run_train(task_id, args, log_dir)
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/scripts/train.py", line 155, in run_train
+    runner.learn(
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/lib/python3.10/site-packages/rsl_rl/runners/on_policy_runner.py", line 87, in learn
+    obs, rewards, dones, extras = self.env.step(actions.to(self.env.device))
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/lib/python3.10/site-packages/mjlab/rl/vecenv_wrapper.py", line 77, in step
+    obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/lib/python3.10/site-packages/mjlab/envs/manager_based_rl_env.py", line 419, in step
+    self.action_manager.process_action(action.to(self.device))
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/.venv/lib/python3.10/site-packages/mjlab/managers/action_manager.py", line 174, in process_action
+    term.process_actions(term_actions)
+  File "/home/mamad/PhD/MJLAB/leapXelaMjLab/src/leap_xela_mjlab/tasks/reorient/mdp/actions.py", line 80, in process_actions
+    lower, upper = self._limits(slice(None))
+KeyboardInterrupt
