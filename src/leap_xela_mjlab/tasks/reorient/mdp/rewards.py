@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import torch
@@ -43,6 +44,37 @@ def cube_orientation_tolerance(
   assert goal is not None
   err = quat_error_magnitude(cube.data.root_link_quat_w, goal)
   return _linear_tolerance(err, bounds=bounds, margin=margin)
+
+
+def _long_tail_tolerance(
+  x: torch.Tensor,
+  margin: float,
+  value_at_margin: float = 0.1,
+) -> torch.Tensor:
+  """dm_control-style ``long_tail`` sigmoid: 1.0 at x=0, ``value_at_margin`` at x=margin."""
+  scale = math.sqrt(1.0 / value_at_margin - 1.0)
+  scaled = x / margin * scale
+  return 1.0 / (scaled * scaled + 1.0)
+
+
+def cube_orientation_fine(
+  env: ManagerBasedRlEnv,
+  command_name: str = "goal_orientation",
+  object_name: str = "cube",
+  margin: float = 0.4,
+) -> torch.Tensor:
+  """Peaked orientation reward that only pays out near the goal.
+
+  The linear term in :func:`cube_orientation_tolerance` gives global direction but
+  is far too shallow (5/pi per rad) to drive the last radian, so the policy parks
+  at ~1.5 rad and farms episode length instead. This concentrates the gradient
+  near zero error.
+  """
+  cube: Entity = env.scene[object_name]
+  goal = env.command_manager.get_command(command_name)
+  assert goal is not None
+  err = quat_error_magnitude(cube.data.root_link_quat_w, goal)
+  return _long_tail_tolerance(err, margin=margin)
 
 
 def cube_position_tolerance(
@@ -91,6 +123,49 @@ class action_rate_l2:
     self.prev_prev = self.prev.clone()
     self.prev = act.clone()
     return c1 + c2
+
+
+class orientation_progress:
+  """Dense reward for *reducing* orientation error, paid at any error magnitude.
+
+  The tolerance terms only carry useful gradient near the goal, so a policy that
+  starts ~2.25 rad away gets almost no signal connecting its actions to the goal
+  and settles on a fixed compromise pose. This pays ``prev_err - err`` every step,
+  which telescopes over an episode to the total progress made.
+
+  ``clip`` bounds the per-step delta so the discontinuous error jump when the goal
+  resamples on success cannot swamp the success bonus with a large negative. Normal
+  per-step changes are well below the clip, so it effectively only binds on resample.
+  """
+
+  def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv):
+    del cfg
+    self.prev_err = torch.zeros(env.num_envs, device=env.device)
+    self.started = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+  def reset(self, env_ids: torch.Tensor | slice | None = None) -> None:
+    if env_ids is None:
+      env_ids = slice(None)
+    self.started[env_ids] = False
+    self.prev_err[env_ids] = 0.0
+
+  def __call__(
+    self,
+    env: ManagerBasedRlEnv,
+    command_name: str = "goal_orientation",
+    object_name: str = "cube",
+    clip: float = 0.1,
+  ) -> torch.Tensor:
+    cube: Entity = env.scene[object_name]
+    goal = env.command_manager.get_command(command_name)
+    assert goal is not None
+    err = quat_error_magnitude(cube.data.root_link_quat_w, goal)
+    # No reward on the first step after a reset: prev_err is not meaningful yet.
+    progress = torch.where(self.started, self.prev_err - err, torch.zeros_like(err))
+    progress = torch.clamp(progress, -clip, clip)
+    self.prev_err = err.clone()
+    self.started[:] = True
+    return progress
 
 
 def joint_vel_l2(

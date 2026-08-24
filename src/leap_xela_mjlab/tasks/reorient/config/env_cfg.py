@@ -11,6 +11,7 @@ from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.managers.action_manager import ActionTermCfg
 from mjlab.managers.command_manager import CommandTermCfg
+from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
@@ -140,9 +141,11 @@ def make_reorient_env_cfg(
     "goal_orientation": reorient_mdp.InHandReorientationCommandCfg(
       asset_name="cube",
       goal_asset_name="goal",
-      orientation_success_threshold=0.1,
+      orientation_success_threshold=0.4,
       update_goal_on_success=True,
-      use_mjx_goal_drift=True,
+      use_mjx_goal_drift=False,
+      goal_relative_to_object=True,
+      initial_difficulty=0.1,
       debug_vis=True,
       debug_vis_axes=False,
     ),
@@ -241,8 +244,19 @@ def make_reorient_env_cfg(
   rewards = {
     "orientation": RewardTermCfg(
       func=reorient_mdp.cube_orientation_tolerance,
-      weight=5.0,
+      # Lowered from 5.0: at the parked error of ~1.5 rad this paid 2.6/step for
+      # 930 steps, so holding the cube still outearned any attempt to reorient.
+      weight=1.0,
       params={"command_name": "goal_orientation", "object_name": "cube"},
+    ),
+    "orientation_fine": RewardTermCfg(
+      func=reorient_mdp.cube_orientation_fine,
+      weight=5.0,
+      params={
+        "command_name": "goal_orientation",
+        "object_name": "cube",
+        "margin": 0.4,
+      },
     ),
     "position": RewardTermCfg(
       func=reorient_mdp.cube_position_tolerance,
@@ -278,7 +292,27 @@ def make_reorient_env_cfg(
       params={
         "command_name": "goal_orientation",
         "object_name": "cube",
-        "success_threshold": 0.1,
+        "success_threshold": 0.4,
+      },
+    ),
+  }
+
+  curriculum = {
+    "goal_difficulty": CurriculumTermCfg(
+      func=reorient_mdp.goal_difficulty,
+      params={
+        "command_name": "goal_orientation",
+        "promote_at": 1.0,
+        "demote_at": 0.2,
+        # Slow: compute() fires ~24x per training iteration, so update_every=500
+        # is ~20 iterations per adjustment. At step 0.02 a full 0.1 -> 1.0 ramp
+        # takes ~900 iterations. Faster than this and difficulty outruns
+        # competence, which oscillates instead of ramping.
+        "step": 0.02,
+        "min_difficulty": 0.05,
+        "max_difficulty": 1.0,
+        "update_every": 500,
+        "ema_alpha": 0.01,
       },
     ),
   }
@@ -318,6 +352,7 @@ def make_reorient_env_cfg(
     events=events,
     rewards=rewards,
     terminations=terminations,
+    curriculum=curriculum,
     viewer=ViewerConfig(
       origin_type=ViewerConfig.OriginType.ASSET_BODY,
       entity_name="robot",

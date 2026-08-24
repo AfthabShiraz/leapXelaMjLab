@@ -60,6 +60,23 @@ class InHandReorientationCommand(CommandTerm):
     self.metrics["consecutive_success"] = torch.zeros(
       self.num_envs, device=self.device
     )
+    # Diagnostic only: distinguishes "cannot rotate the cube" from
+    # "rotates it, but not toward the goal".
+    self.metrics["cube_ang_speed"] = torch.zeros(self.num_envs, device=self.device)
+    # Goals actually reached this episode. Unlike consecutive_success this is not
+    # cleared by the success-triggered goal resample, so it is a true per-episode
+    # count and the signal the curriculum promotes on.
+    self.success_count = torch.zeros(self.num_envs, device=self.device)
+    self.metrics["goals_reached"] = torch.zeros(self.num_envs, device=self.device)
+    self.difficulty = float(cfg.initial_difficulty)
+    # Relative goals cannot be composed at reset: the cube pose written by the
+    # reset event only reaches root_link_quat_w after sim.forward(), so reading it
+    # there yields a stale orientation. Stash the offset and compose on the first
+    # step, when the pose is current.
+    self.pending_delta = torch.zeros(self.num_envs, 4, device=self.device)
+    self.pending_delta[:, 0] = 1.0
+    self.pending = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+    self.metrics["difficulty"] = torch.zeros(self.num_envs, device=self.device)
     self._sync_goal_visual(slice(None))
 
   @property
@@ -93,7 +110,21 @@ class InHandReorientationCommand(CommandTerm):
     else:
       self.goal_entity.write_root_link_pose_to_sim(pose, env_ids=ids)
 
+  def _apply_pending_goals(self) -> None:
+    """Compose deferred relative goals against the now-current cube pose."""
+    if not self.cfg.goal_relative_to_object:
+      return
+    ids = self.pending.nonzero(as_tuple=False).squeeze(-1)
+    if ids.numel() == 0:
+      return
+    self.quat_command_w[ids] = _normalize_quat(
+      quat_mul(self.object.data.root_link_quat_w[ids], self.pending_delta[ids])
+    )
+    self.pending[ids] = False
+    self._sync_goal_visual(ids)
+
   def _update_metrics(self) -> None:
+    self._apply_pending_goals()
     err = quat_error_magnitude(
       self.object.data.root_link_quat_w, self.quat_command_w
     )
@@ -101,19 +132,39 @@ class InHandReorientationCommand(CommandTerm):
     success = (err < self.cfg.orientation_success_threshold).float()
     self.metrics["success"] = success
     self.metrics["consecutive_success"] += success
+    self.metrics["cube_ang_speed"] = torch.linalg.vector_norm(
+      self.object.data.root_link_ang_vel_w, dim=-1
+    )
+    self.metrics["goals_reached"] = self.success_count.clone()
+    self.metrics["difficulty"][:] = self.difficulty
 
-  def _resample_command(self, env_ids: torch.Tensor) -> None:
+  def _sample_goal(self, env_ids: torch.Tensor) -> None:
+    """Draw new goal orientations for ``env_ids``, scaled by the curriculum."""
     if len(env_ids) == 0:
       return
+    span = torch.pi * self.difficulty
     rand = 2.0 * torch.rand((len(env_ids), 2), device=self.device) - 1.0
-    quat = quat_mul(
-      quat_from_angle_axis(rand[:, 0] * torch.pi, self._x_unit[env_ids]),
-      quat_from_angle_axis(rand[:, 1] * torch.pi, self._y_unit[env_ids]),
+    delta = quat_mul(
+      quat_from_angle_axis(rand[:, 0] * span, self._x_unit[env_ids]),
+      quat_from_angle_axis(rand[:, 1] * span, self._y_unit[env_ids]),
     )
-    self.quat_command_w[env_ids] = _normalize_quat(quat)
+    if self.cfg.goal_relative_to_object:
+      # Offset from where the cube is now, so difficulty controls the actual
+      # distance the policy has to cover. Composed on the next step (see below).
+      self.pending_delta[env_ids] = delta
+      self.pending[env_ids] = True
+      delta = quat_mul(self.object.data.root_link_quat_w[env_ids], delta)
+    self.quat_command_w[env_ids] = _normalize_quat(delta)
     self.goal_dquat[env_ids] = 0.0
     self.metrics["consecutive_success"][env_ids] = 0.0
     self._sync_goal_visual(env_ids)
+
+  def _resample_command(self, env_ids: torch.Tensor) -> None:
+    """Episode reset: new goal *and* clear the per-episode success count."""
+    if len(env_ids) == 0:
+      return
+    self._sample_goal(env_ids)
+    self.success_count[env_ids] = 0.0
 
   def _update_command(self) -> None:
     success = self.metrics["orientation_error"] < self.cfg.orientation_success_threshold
@@ -131,7 +182,8 @@ class InHandReorientationCommand(CommandTerm):
       self._sync_goal_visual(slice(None))
     elif self.cfg.update_goal_on_success:
       ids = success.nonzero(as_tuple=False).squeeze(-1)
-      self._resample_command(ids)
+      self.success_count[ids] += 1.0
+      self._sample_goal(ids)
 
   def _debug_vis_impl(self, visualizer: "DebugVisualizer") -> None:
     """Small axes on the goal cube (orientation is mainly shown by the mesh)."""
@@ -163,6 +215,11 @@ class InHandReorientationCommandCfg(CommandTermCfg):
   orientation_success_threshold: float = 0.1
   update_goal_on_success: bool = True
   use_mjx_goal_drift: bool = True
+  # Curriculum. Goals are sampled within +-(difficulty * pi) on each of two axes.
+  # With goal_relative_to_object, that offset is applied to the cube's *current*
+  # orientation, so early goals are reachable instead of a near-arbitrary pose.
+  goal_relative_to_object: bool = False
+  initial_difficulty: float = 0.1
   # Used only if no goal entity is present.
   goal_pos_offset: tuple[float, float, float] = (0.225, 0.17, 0.0)
   resampling_time_range: tuple[float, float] = (1e9, 1e9)

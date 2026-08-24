@@ -2,6 +2,7 @@
 
 from leap_xela_mjlab.tasks.reorient.mdp import actions as actions
 from leap_xela_mjlab.tasks.reorient.mdp import commands as commands
+from leap_xela_mjlab.tasks.reorient.mdp import curriculums as curriculums
 from leap_xela_mjlab.tasks.reorient.mdp import events as events
 from leap_xela_mjlab.tasks.reorient.mdp import observations as observations
 from leap_xela_mjlab.tasks.reorient.mdp import rewards as rewards
@@ -12,6 +13,9 @@ from leap_xela_mjlab.tasks.reorient.mdp.actions import (
 )
 from leap_xela_mjlab.tasks.reorient.mdp.commands import (
   InHandReorientationCommandCfg,
+)
+from leap_xela_mjlab.tasks.reorient.mdp.curriculums import (
+  goal_difficulty,
 )
 from leap_xela_mjlab.tasks.reorient.mdp.events import (
   apply_cube_velocity_perturbation,
@@ -31,11 +35,13 @@ from leap_xela_mjlab.tasks.reorient.mdp.observations import (
 )
 from leap_xela_mjlab.tasks.reorient.mdp.rewards import (
   action_rate_l2,
+  cube_orientation_fine,
   cube_orientation_tolerance,
   cube_position_tolerance,
   energy_l1,
   hand_pose_l2_from_default,
   joint_vel_l2,
+  orientation_progress,
   success_bonus,
   termination_penalty,
 )
@@ -53,11 +59,14 @@ __all__ = [
   "cube_fell_below",
   "cube_lin_vel",
   "cube_ori_error_mat",
+  "cube_orientation_fine",
   "cube_orientation_tolerance",
   "cube_pos_error_from_palm",
   "cube_position_tolerance",
   "energy_l1",
+  "curriculums",
   "events",
+  "goal_difficulty",
   "fingertip_positions_rel_palm",
   "hand_pose_l2_from_default",
   "joint_pos_abs",
@@ -65,6 +74,7 @@ __all__ = [
   "joint_vel_abs",
   "joint_vel_l2",
   "observations",
+  "orientation_progress",
   "action_rate_l2",
   "randomize_body_mass",
   "randomize_geom_friction",

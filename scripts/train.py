@@ -35,6 +35,9 @@ class TrainConfig:
   cube_half_size: float | None = None
   cube_friction_sliding: float | None = None
   cube_friction_torsional: float | None = None
+  # Logging / checkpointing.
+  logger: Literal["wandb", "tensorboard"] | None = None
+  save_interval: int | None = None
   # WandB / run labeling.
   run_name: str | None = None
   wandb_project: str | None = None
@@ -128,6 +131,10 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> dict[str, Any]:
     agent_cfg.max_iterations = cfg.max_iterations
   agent_cfg.seed = seed
   env_cfg.seed = seed
+  if cfg.logger is not None:
+    agent_cfg.logger = cfg.logger
+  if cfg.save_interval is not None:
+    agent_cfg.save_interval = cfg.save_interval
   if cfg.run_name is not None:
     agent_cfg.run_name = cfg.run_name
   if cfg.wandb_project is not None:
