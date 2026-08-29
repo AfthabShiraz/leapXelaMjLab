@@ -390,6 +390,14 @@ def make_reorient_env_cfg(
         iterations=5,
         ls_iterations=8,
         integrator="euler",
+        # The generated MJCF carries <flag eulerdamp="disable"/>, but mjlab
+        # attaches the hand spec into its own scene and the parent's option
+        # block wins, so the flag was silently dropped and we were running with
+        # MuJoCo's default implicit damping while Hamid runs explicit. Not
+        # cosmetic: in a scripted grasp the two differ by 10x in peak joint
+        # velocity (21.9 vs 2.0 rad/s). Restore it here -- MujocoCfg.apply()
+        # only ORs disableflags in, so this is the only way to get it back.
+        disableflags=("eulerdamp",),
       ),
     ),
     # ctrl_dt=0.05, sim_dt=0.01  -> decimation=5

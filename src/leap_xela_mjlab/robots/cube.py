@@ -74,7 +74,7 @@ def _load_cube_assets() -> dict[str, bytes]:
 def get_cube_spec(
   half_size: float = _CUBE_HALF_SIZE,
   mass: float = _CUBE_MASS,
-  friction: tuple[float, float, float] = (0.3, 0.05, 0.001),
+  friction: tuple[float, float, float] = (0.3, 0.05, 0.0001),
 ) -> mujoco.MjSpec:
   xml = _CUBE_XML.format(
     s=half_size, mass=mass, f0=friction[0], f1=friction[1], f2=friction[2]
@@ -96,7 +96,12 @@ def get_cube_cfg(
   mass: float = _CUBE_MASS,
   friction_sliding: float = 0.3,
   friction_torsional: float = 0.05,
-  friction_rolling: float = 0.001,
+  # MuJoCo's default rolling friction, matching the MJX cube, which leaves it
+  # unset. Note both this and friction_torsional are *inert* at condim=3: a 3D
+  # contact has a normal and two tangential directions only, so friction[1] and
+  # friction[2] are never read. The fric-tors ablation in TRAINING_NOTES.md
+  # (0.05 / 0.3 / 1.0) therefore varied nothing.
+  friction_rolling: float = 0.0001,
 ) -> EntityCfg:
   if spawn_pos is None:
     spawn_pos = (
