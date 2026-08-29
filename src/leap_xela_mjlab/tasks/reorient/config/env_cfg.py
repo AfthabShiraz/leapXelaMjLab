@@ -41,6 +41,7 @@ def make_reorient_env_cfg(
   *,
   finger_tip_type: str = "Box",
   play: bool = False,
+  preset: str = "curriculum",
   enable_perturbations: bool = False,
   cube_half_size: float = _DEFAULT_CUBE_HALF_SIZE,
   cube_mass: float | None = None,
@@ -48,6 +49,13 @@ def make_reorient_env_cfg(
   cube_friction_torsional: float = 0.05,
   disable_cube_friction_dr: bool = False,
 ) -> ManagerBasedRlEnvCfg:
+  # "baseline" reproduces the pre-curriculum config used by run #1
+  # (`baseline-no-touch-10k`) in TRAINING_NOTES.md, so those runs can be repeated
+  # against the corrected joint limits. "curriculum" is the current best config.
+  if preset not in ("baseline", "curriculum"):
+    raise ValueError(f"Unknown preset {preset!r}; expected 'baseline' or 'curriculum'.")
+  baseline = preset == "baseline"
+
   robot_cfg = SceneEntityCfg("robot", joint_names=(".*",))
 
   actor_terms = {
@@ -141,11 +149,13 @@ def make_reorient_env_cfg(
     "goal_orientation": reorient_mdp.InHandReorientationCommandCfg(
       asset_name="cube",
       goal_asset_name="goal",
-      orientation_success_threshold=0.4,
+      orientation_success_threshold=0.1 if baseline else 0.4,
       update_goal_on_success=True,
-      use_mjx_goal_drift=False,
-      goal_relative_to_object=True,
-      initial_difficulty=0.1,
+      use_mjx_goal_drift=baseline,
+      goal_relative_to_object=not baseline,
+      # Absolute goals over the full +-pi span, matching the original
+      # `rand * torch.pi` sampling, since span = pi * difficulty.
+      initial_difficulty=1.0 if baseline else 0.1,
       debug_vis=True,
       debug_vis_axes=False,
     ),
@@ -246,17 +256,8 @@ def make_reorient_env_cfg(
       func=reorient_mdp.cube_orientation_tolerance,
       # Lowered from 5.0: at the parked error of ~1.5 rad this paid 2.6/step for
       # 930 steps, so holding the cube still outearned any attempt to reorient.
-      weight=1.0,
+      weight=5.0 if baseline else 1.0,
       params={"command_name": "goal_orientation", "object_name": "cube"},
-    ),
-    "orientation_fine": RewardTermCfg(
-      func=reorient_mdp.cube_orientation_fine,
-      weight=5.0,
-      params={
-        "command_name": "goal_orientation",
-        "object_name": "cube",
-        "margin": 0.4,
-      },
     ),
     "position": RewardTermCfg(
       func=reorient_mdp.cube_position_tolerance,
@@ -292,10 +293,21 @@ def make_reorient_env_cfg(
       params={
         "command_name": "goal_orientation",
         "object_name": "cube",
-        "success_threshold": 0.4,
+        "success_threshold": 0.1 if baseline else 0.4,
       },
     ),
   }
+
+  if not baseline:
+    rewards["orientation_fine"] = RewardTermCfg(
+      func=reorient_mdp.cube_orientation_fine,
+      weight=5.0,
+      params={
+        "command_name": "goal_orientation",
+        "object_name": "cube",
+        "margin": 0.4,
+      },
+    )
 
   curriculum = {
     "goal_difficulty": CurriculumTermCfg(
@@ -316,6 +328,9 @@ def make_reorient_env_cfg(
       },
     ),
   }
+
+  if baseline:
+    curriculum = {}
 
   terminations = {
     "time_out": TerminationTermCfg(func=envs_mdp.time_out, time_out=True),
@@ -392,3 +407,7 @@ def make_reorient_env_cfg(
 
 def leap_xela_cube_reorient_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   return make_reorient_env_cfg(finger_tip_type="Box", play=play)
+
+
+def leap_xela_cube_reorient_baseline_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  return make_reorient_env_cfg(finger_tip_type="Box", play=play, preset="baseline")
