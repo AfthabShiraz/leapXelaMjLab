@@ -18,6 +18,11 @@ def leap_xela_cube_reorient_ppo_cfg(preset: str = "curriculum") -> RslRlOnPolicy
       f"Unknown preset {preset!r}; expected 'baseline', 'curriculum' or 'reference'."
     )
   baseline = preset in ("baseline", "reference")
+  # The reference preset matches mujoco_playground's brax batch shape, which is
+  # what Hamid's runs used: 8192 envs x 40 steps = 327,680 samples per update
+  # across 32 minibatches, vs our 4096 x 24 = 98,304 across 4. Pass
+  # --num-envs 8192; the rest is set here.
+  reference = preset == "reference"
   return RslRlOnPolicyRunnerCfg(
     actor=RslRlModelCfg(
       hidden_dims=(512, 256, 128),
@@ -39,8 +44,8 @@ def leap_xela_cube_reorient_ppo_cfg(preset: str = "curriculum") -> RslRlOnPolicy
       use_clipped_value_loss=True,
       clip_param=0.2,
       entropy_coef=0.01 if baseline else 0.002,
-      num_learning_epochs=5,
-      num_mini_batches=4,
+      num_learning_epochs=4 if reference else 5,
+      num_mini_batches=32 if reference else 4,
       learning_rate=3.0e-4,
       schedule="adaptive",
       gamma=0.99,
@@ -54,6 +59,6 @@ def leap_xela_cube_reorient_ppo_cfg(preset: str = "curriculum") -> RslRlOnPolicy
       "curriculum": "leap_xela_cube_reorient",
     }[preset],
     save_interval=100,
-    num_steps_per_env=24,
+    num_steps_per_env=40 if reference else 24,
     max_iterations=100_000,
   )

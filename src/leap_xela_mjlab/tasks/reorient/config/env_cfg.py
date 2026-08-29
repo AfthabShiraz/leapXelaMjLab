@@ -377,9 +377,14 @@ def make_reorient_env_cfg(
       azimuth=120.0,
     ),
     sim=SimulationCfg(
-      nconmax=48,
-      # Hand+cube contacts exceed mjwarp's default heuristic (~64 nefc); seen overflows at ~80.
-      njmax=120,
+      nconmax=64,
+      # Every run logged before 2026-08-29 hit "nefc overflow - please increase
+      # njmax" against njmax=120, peaking at a request of 168 (curriculum-smoke).
+      # Overflow silently drops constraint rows -- contacts and joint limits --
+      # in exactly the high-contact states where the hand is gripping hard, so
+      # every run so far trained against occasionally-dropped contacts. Hamid
+      # raised this to 220 for the same task in playground; match that.
+      njmax=220,
       mujoco=MujocoCfg(
         timestep=0.01,
         iterations=5,
