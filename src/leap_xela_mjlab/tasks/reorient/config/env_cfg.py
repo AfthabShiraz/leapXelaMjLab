@@ -394,6 +394,19 @@ def make_reorient_env_cfg(
     scale_rewards_by_dt=True,
   )
 
+  # train.py's cube overrides rebuild the cfg; keep the arguments around so they
+  # can do that without silently reverting preset / finger_tip_type to defaults.
+  cfg.build_kwargs = {
+    "finger_tip_type": finger_tip_type,
+    "preset": preset,
+    "enable_perturbations": enable_perturbations,
+    "cube_half_size": cube_half_size,
+    "cube_mass": cube_mass,
+    "cube_friction_sliding": cube_friction_sliding,
+    "cube_friction_torsional": cube_friction_torsional,
+    "disable_cube_friction_dr": disable_cube_friction_dr,
+  }
+
   if play:
     cfg.episode_length_s = 1e9
     cfg.observations["actor"].enable_corruption = False
@@ -411,3 +424,27 @@ def leap_xela_cube_reorient_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 
 def leap_xela_cube_reorient_baseline_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   return make_reorient_env_cfg(finger_tip_type="Box", play=play, preset="baseline")
+
+
+def leap_xela_cube_reorient_reference_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """The one LeapXELA configuration Hamid found that learns to reorient.
+
+  From the "Training LeapXELA" Notion page: at palm euler 1.88 every cube scale
+  he tried (1.0, 1.05, 1.08, 1.09, 1.1, 1.2) plateaus at reward ~150, as does
+  palm 1.92 with scale 1.1. Palm 1.92 with the cube at its *original* size took
+  off instead (141 -> 284 and still climbing at 200M steps). Our generated model
+  is baked at palm 1.88 and the env defaults to half-size 0.0385 (scale 1.1),
+  i.e. exactly the combination he has four flat runs on.
+
+  Palm angle lives in the MJCF, so this variant loads a separately generated
+  model (``--palm-euler 0 1.92 -1.57``). Cube mass is pinned to 0.108 because his
+  XML keeps it constant across scales, whereas _cube_mass_for_half_size scales it
+  with volume and would give 0.081 here.
+  """
+  return make_reorient_env_cfg(
+    finger_tip_type="Box_palm192",
+    play=play,
+    preset="baseline",
+    cube_half_size=0.035,
+    cube_mass=0.108,
+  )

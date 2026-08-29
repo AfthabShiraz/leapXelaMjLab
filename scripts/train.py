@@ -58,19 +58,17 @@ def _apply_cube_overrides(
 
   from leap_xela_mjlab.tasks.reorient.config.env_cfg import make_reorient_env_cfg
 
-  half_size = cfg.cube_half_size if cfg.cube_half_size is not None else 0.0385
-  friction_sliding = (
-    cfg.cube_friction_sliding if cfg.cube_friction_sliding is not None else 0.3
-  )
-  friction_torsional = (
-    cfg.cube_friction_torsional if cfg.cube_friction_torsional is not None else 0.05
-  )
-  overridden = make_reorient_env_cfg(
-    cube_half_size=half_size,
-    cube_friction_sliding=friction_sliding,
-    cube_friction_torsional=friction_torsional,
-    disable_cube_friction_dr=True,
-  )
+  # Rebuild from the arguments the task was registered with, so overriding the
+  # cube does not silently revert preset / finger_tip_type to their defaults.
+  kwargs = dict(getattr(env_cfg, "build_kwargs", {}))
+  if cfg.cube_half_size is not None:
+    kwargs["cube_half_size"] = cfg.cube_half_size
+  if cfg.cube_friction_sliding is not None:
+    kwargs["cube_friction_sliding"] = cfg.cube_friction_sliding
+  if cfg.cube_friction_torsional is not None:
+    kwargs["cube_friction_torsional"] = cfg.cube_friction_torsional
+  kwargs["disable_cube_friction_dr"] = True
+  overridden = make_reorient_env_cfg(**kwargs)
   overridden.seed = env_cfg.seed
   overridden.scene.num_envs = env_cfg.scene.num_envs
   overridden.episode_length_s = env_cfg.episode_length_s

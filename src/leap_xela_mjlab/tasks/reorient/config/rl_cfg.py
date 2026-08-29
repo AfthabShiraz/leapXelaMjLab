@@ -9,9 +9,15 @@ def leap_xela_cube_reorient_ppo_cfg(preset: str = "curriculum") -> RslRlOnPolicy
   """RSL-RL config aligned with the MJX LeapXELACubeReorient brax/rsl settings.
 
   ``preset="baseline"`` restores the exploration settings used by run #1 in
-  TRAINING_NOTES.md (init_std 1.0, entropy_coef 0.01).
+  TRAINING_NOTES.md (init_std 1.0, entropy_coef 0.01). ``preset="reference"``
+  uses those same settings under its own experiment name, so the palm-1.92 /
+  cube-1.0 runs log separately from the palm-1.88 baseline they are compared to.
   """
-  baseline = preset == "baseline"
+  if preset not in ("baseline", "curriculum", "reference"):
+    raise ValueError(
+      f"Unknown preset {preset!r}; expected 'baseline', 'curriculum' or 'reference'."
+    )
+  baseline = preset in ("baseline", "reference")
   return RslRlOnPolicyRunnerCfg(
     actor=RslRlModelCfg(
       hidden_dims=(512, 256, 128),
@@ -42,7 +48,11 @@ def leap_xela_cube_reorient_ppo_cfg(preset: str = "curriculum") -> RslRlOnPolicy
       desired_kl=0.01,
       max_grad_norm=1.0,
     ),
-    experiment_name="leap_xela_cube_reorient_baseline" if baseline else "leap_xela_cube_reorient",
+    experiment_name={
+      "baseline": "leap_xela_cube_reorient_baseline",
+      "reference": "leap_xela_cube_reorient_reference",
+      "curriculum": "leap_xela_cube_reorient",
+    }[preset],
     save_interval=100,
     num_steps_per_env=24,
     max_iterations=100_000,
