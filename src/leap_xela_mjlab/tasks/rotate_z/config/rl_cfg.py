@@ -13,7 +13,7 @@ from mjlab.rl import (
 )
 
 
-def leap_xela_cube_rotate_z_ppo_cfg() -> RslRlOnPolicyRunnerCfg:
+def leap_xela_cube_rotate_z_ppo_cfg(axis_name: str = "z") -> RslRlOnPolicyRunnerCfg:
   return RslRlOnPolicyRunnerCfg(
     actor=RslRlModelCfg(
       hidden_dims=(512, 256, 128),
@@ -44,7 +44,7 @@ def leap_xela_cube_rotate_z_ppo_cfg() -> RslRlOnPolicyRunnerCfg:
       desired_kl=0.01,
       max_grad_norm=1.0,
     ),
-    experiment_name="leap_xela_cube_rotate_z",
+    experiment_name=f"leap_xela_cube_rotate_{axis_name}",
     save_interval=100,
     num_steps_per_env=40,
     max_iterations=100_000,

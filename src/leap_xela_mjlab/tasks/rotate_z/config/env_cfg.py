@@ -38,7 +38,19 @@ def make_rotate_z_env_cfg(
   cube_mass: float = 0.108,
   cube_friction_sliding: float = 0.3,
   cube_friction_torsional: float = 0.05,
+  axis: tuple[float, float, float] = (0.0, 0.0, 1.0),
+  cube_condim: int = 3,
 ) -> ManagerBasedRlEnvCfg:
+  """``axis`` selects which world axis the angular-velocity reward projects onto.
+
+  World +z is the palm normal, i.e. the "twist the cube in the fingertips" motion
+  MJX's ``LeapCubeRotateZAxis`` rewards. x and y are the two "tip the cube over"
+  motions, which is what the reorient policy stalls on: it removes 88% of the
+  twist component of its goal but only 64% of the tip component, and 96% of the
+  residual error at its best moment is tip-over. Those two axes are untested --
+  a near-zero score there would mean the hand cannot tip the cube while keeping
+  hold of it, and would point at the fingertip pads rather than the reward.
+  """
   robot_cfg = SceneEntityCfg("robot", joint_names=(".*",))
 
   # MJX state: noisy joint angles (16) + last action (16).
@@ -184,7 +196,7 @@ def make_rotate_z_env_cfg(
     "angvel": RewardTermCfg(
       func=rotate_mdp.cube_ang_vel_axis,
       weight=1.0,
-      params={"object_name": "cube", "axis": (0.0, 0.0, 1.0)},
+      params={"object_name": "cube", "axis": axis},
     ),
     "termination": RewardTermCfg(func=reorient_mdp.termination_penalty, weight=-100.0),
     "linvel": RewardTermCfg(
@@ -222,6 +234,7 @@ def make_rotate_z_env_cfg(
           mass=cube_mass,
           friction_sliding=cube_friction_sliding,
           friction_torsional=cube_friction_torsional,
+          condim=cube_condim,
         ),
       },
       num_envs=1,
@@ -247,7 +260,13 @@ def make_rotate_z_env_cfg(
       # A CPU rollout of our model peaks at nefc 108 / ncon 24, so the reorient
       # task's njmax=120 has almost no headroom and overflow is silent.
       nconmax=64,
-      njmax=200,
+      # condim 6 costs 6 constraint rows per contact instead of 3, so the same
+      # grasp needs roughly double the buffer: at njmax=200 the condim-6 run
+      # overflowed within 5 iterations (peak request 234, and it climbs as the
+      # grip tightens). Kept at exactly 200 for condim 3 so the completed
+      # rotate_x/y/z runs stay bit-identical; njmax has no effect on the
+      # dynamics unless it overflows.
+      njmax=200 if cube_condim <= 3 else 500,
       mujoco=MujocoCfg(
         timestep=0.01,
         iterations=5,
@@ -268,6 +287,18 @@ def make_rotate_z_env_cfg(
     scale_rewards_by_dt=True,
   )
 
+  # train.py's cube overrides rebuild the cfg from these, so overriding one cube
+  # parameter cannot silently revert the axis or the fingertip type.
+  cfg.build_kwargs = {
+    "finger_tip_type": finger_tip_type,
+    "cube_half_size": cube_half_size,
+    "cube_mass": cube_mass,
+    "cube_friction_sliding": cube_friction_sliding,
+    "cube_friction_torsional": cube_friction_torsional,
+    "axis": axis,
+    "cube_condim": cube_condim,
+  }
+
   if play:
     cfg.episode_length_s = 1e9
     cfg.observations["actor"].enable_corruption = False
@@ -276,6 +307,19 @@ def make_rotate_z_env_cfg(
         del cfg.events[key]
 
   return cfg
+
+
+_AXES: dict[str, tuple[float, float, float]] = {
+  "x": (1.0, 0.0, 0.0),
+  "y": (0.0, 1.0, 0.0),
+  "z": (0.0, 0.0, 1.0),
+}
+
+
+def leap_xela_cube_rotate_env_cfg(
+  axis_name: str = "z", play: bool = False
+) -> ManagerBasedRlEnvCfg:
+  return make_rotate_z_env_cfg(play=play, axis=_AXES[axis_name])
 
 
 def leap_xela_cube_rotate_z_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:

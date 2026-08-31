@@ -48,6 +48,7 @@ def make_reorient_env_cfg(
   cube_friction_sliding: float = 0.3,
   cube_friction_torsional: float = 0.05,
   disable_cube_friction_dr: bool = False,
+  cube_condim: int = 3,
 ) -> ManagerBasedRlEnvCfg:
   # "baseline" reproduces the pre-curriculum config used by run #1
   # (`baseline-no-touch-10k`) in TRAINING_NOTES.md, so those runs can be repeated
@@ -355,6 +356,7 @@ def make_reorient_env_cfg(
           mass=cube_mass,
           friction_sliding=cube_friction_sliding,
           friction_torsional=cube_friction_torsional,
+          condim=cube_condim,
         ),
         "goal": get_goal_cube_cfg(half_size=cube_half_size),
       },
@@ -384,7 +386,13 @@ def make_reorient_env_cfg(
       # in exactly the high-contact states where the hand is gripping hard, so
       # every run so far trained against occasionally-dropped contacts. Hamid
       # raised this to 220 for the same task in playground; match that.
-      njmax=220,
+      #
+      # condim 6 costs 6 constraint rows per contact instead of 3, so the same
+      # grasp needs roughly double the buffer (the rotate_x condim-6 run
+      # overflowed njmax=200 within 5 iterations, peak request 234). Kept at
+      # exactly 220 for condim 3 so runs 12-14 stay comparable; njmax has no
+      # effect on the dynamics unless it overflows.
+      njmax=220 if cube_condim <= 3 else 500,
       mujoco=MujocoCfg(
         timestep=0.01,
         iterations=5,
@@ -418,6 +426,7 @@ def make_reorient_env_cfg(
     "cube_friction_sliding": cube_friction_sliding,
     "cube_friction_torsional": cube_friction_torsional,
     "disable_cube_friction_dr": disable_cube_friction_dr,
+    "cube_condim": cube_condim,
   }
 
   if play:
