@@ -111,6 +111,43 @@ Training metrics are logged to [WandB](https://wandb.ai) by default (`logger=wan
 `rl_cfg.py`). Set `WANDB_API_KEY` in `.env` at the project root (loaded automatically by
 `train.py` and `run_sweep.py`), or log in with `wandb login`.
 
+## Evaluate (deterministic policy)
+
+Training logs `orientation_error` under the **stochastic** policy, whose action std
+converges to ~2.79 — at action scale 0.5 that is a commanded joint delta of std
+1.40 rad per control step, so the logged error badly understates what the policy's
+mean action can do. `scripts/eval_policy.py` rolls out the **mean** action and
+reports terminal precision.
+
+```bash
+# Run 14 (condim 3 — the task default, so no --cube-condim needed)
+uv run python scripts/eval_policy.py \
+  logs/rsl_rl/leap_xela_cube_reorient_reference/2026-08-29_16-11-45_reference-v3-eulerdamp/model_2999.pt \
+  --num-envs 64 --json-out eval/run14.json
+
+# A condim-6 checkpoint MUST be scored at condim 6 — condim 3 makes torsional and
+# rolling friction inert, i.e. a different physical system.
+uv run python scripts/eval_policy.py <ckpt> --cube-condim 6
+```
+
+Reports, per episode segment (statistics are re-segmented at every reset, never
+blurred across one): starting / minimum / final orientation error, the fraction of
+episodes that get under `--success-threshold` at any point, the world-frame error
+decomposition into the palm-normal spin component `r_z` and the tip-over component
+`r_xy`, `cube_ang_speed` over the first 20% vs the last 50% of the episode, and
+`cube_fell` drops. Minimum and final error differ because the goal drifts away
+after a success (`use_mjx_goal_drift`), so a final-error-only report is misleading.
+
+| Flag | Description |
+| --- | --- |
+| `--task ID` | Registered task (default `Mjlab-LeapXELA-Cube-Reorient-Reference`) |
+| `--num-envs N` | Parallel envs, one episode stream each (default `64`) |
+| `--num-steps N` | Control steps to roll out (default `700`, 35 s at 20 Hz) |
+| `--success-threshold F` | Reporting threshold in rad (default `0.1` = 5.7°) |
+| `--cube-condim N` | Must match the checkpoint's training value |
+| `--play-env` | Drop observation noise and DR (default: keep training conditions) |
+| `--json-out PATH` | Dump raw per-episode numbers for cross-run comparison |
+
 ## Hyperparameter search
 
 Grid search over cube size and friction (plus seeds), with each run trained via
@@ -185,6 +222,7 @@ leapXelaMjLab/
       config/env_cfg.py          # ManagerBasedRlEnvCfg
       config/rl_cfg.py           # RSL-RL PPO config
   scripts/train.py
+  scripts/eval_policy.py         # deterministic-policy precision eval
   scripts/play.py
   scripts/list_envs.py
   hyperparameter_search/
