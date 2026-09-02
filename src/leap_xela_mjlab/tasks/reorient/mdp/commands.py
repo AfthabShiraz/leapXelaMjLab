@@ -60,6 +60,14 @@ class InHandReorientationCommand(CommandTerm):
     self.metrics["consecutive_success"] = torch.zeros(
       self.num_envs, device=self.device
     )
+    # Playground's second success gauge (``steps_since_last_success``). Metrics
+    # are logged at episode end and zeroed there, so a value near the episode
+    # length reads as "never reached the goal", while a small value means the
+    # policy was on target recently. Complements consecutive_success, which
+    # counts hits but says nothing about when they happened.
+    self.metrics["steps_since_last_success"] = torch.zeros(
+      self.num_envs, device=self.device
+    )
     # Diagnostic only: distinguishes "cannot rotate the cube" from
     # "rotates it, but not toward the goal".
     self.metrics["cube_ang_speed"] = torch.zeros(self.num_envs, device=self.device)
@@ -132,6 +140,19 @@ class InHandReorientationCommand(CommandTerm):
     success = (err < self.cfg.orientation_success_threshold).float()
     self.metrics["success"] = success
     self.metrics["consecutive_success"] += success
+    self.metrics["steps_since_last_success"] = torch.where(
+      success > 0.0,
+      torch.zeros_like(self.metrics["steps_since_last_success"]),
+      self.metrics["steps_since_last_success"] + 1.0,
+    )
+    # Counted here, on the success flag itself, exactly as playground does --
+    # NOT in _update_command's `elif update_goal_on_success` branch, where this
+    # used to live. `use_mjx_goal_drift=True` makes that branch unreachable, so
+    # success_count never incremented and `goals_reached` was pinned at exactly
+    # 0.0 for every run that used the drift (all of runs 12-19). The curriculum
+    # promotion criterion reads the same counter, so it could never promote
+    # either. How the goal is updated on success is independent of counting it.
+    self.success_count += success
     self.metrics["cube_ang_speed"] = torch.linalg.vector_norm(
       self.object.data.root_link_ang_vel_w, dim=-1
     )
@@ -182,7 +203,6 @@ class InHandReorientationCommand(CommandTerm):
       self._sync_goal_visual(slice(None))
     elif self.cfg.update_goal_on_success:
       ids = success.nonzero(as_tuple=False).squeeze(-1)
-      self.success_count[ids] += 1.0
       self._sample_goal(ids)
 
   def _debug_vis_impl(self, visualizer: "DebugVisualizer") -> None:

@@ -44,6 +44,15 @@ class TrainConfig:
   # and the fingertips (0.5-1.0) already dominate the cube (0.1-0.5) -- so this,
   # not --cube-friction-sliding, is the knob that changes how well the hand grips.
   fingertip_friction: tuple[float, float] | None = None
+  # Exploration overrides. rsl_rl's GaussianDistribution is UNBOUNDED, so its
+  # entropy is `const + log(std)` and the entropy bonus pushes log(std) up by a
+  # constant forever -- there is no finite optimum, unlike the tanh-squashed
+  # policy brax/playground uses. Runs 12-19 converge at std 2.79, which at
+  # action scale 0.5 is a commanded joint delta of 1.40 rad per 50 ms step
+  # against ~1-2 rad joint ranges: ~47% of sampled actions saturate
+  # clip_to_ctrl_limits. See TRAINING_NOTES.md, "the exploration noise floor".
+  entropy_coef: float | None = None
+  init_std: float | None = None
   # Logging / checkpointing.
   logger: Literal["wandb", "tensorboard"] | None = None
   save_interval: int | None = None
@@ -189,6 +198,12 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> dict[str, Any]:
     agent_cfg.wandb_tags = cfg.wandb_tags
   if cfg.upload_model is not None:
     agent_cfg.upload_model = cfg.upload_model
+  if cfg.entropy_coef is not None:
+    agent_cfg.algorithm.entropy_coef = cfg.entropy_coef
+    print(f"[INFO] entropy_coef -> {cfg.entropy_coef}")
+  if cfg.init_std is not None:
+    agent_cfg.actor.distribution_cfg["init_std"] = cfg.init_std
+    print(f"[INFO] init_std -> {cfg.init_std}")
 
   print(f"[INFO] Training with: device={device}, seed={seed}, rank={rank}")
   if rank == 0:

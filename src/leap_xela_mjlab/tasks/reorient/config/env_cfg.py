@@ -31,6 +31,10 @@ from leap_xela_mjlab.tasks.reorient import mdp as reorient_mdp
 _DEFAULT_CUBE_HALF_SIZE = 0.0385
 _DEFAULT_CUBE_MASS = 0.108
 
+# ctrl_dt = sim_dt * decimation, matching playground's ctrl_dt=0.05 / sim_dt=0.01.
+_SIM_TIMESTEP = 0.01
+_DECIMATION = 5
+
 
 def _cube_mass_for_half_size(half_size: float) -> float:
   scale = half_size / _DEFAULT_CUBE_HALF_SIZE
@@ -290,6 +294,26 @@ def make_reorient_env_cfg(
     ),
     "success": RewardTermCfg(
       func=reorient_mdp.success_bonus,
+      # There IS a real dt discrepancy against playground here: it adds the
+      # success bonus outside its dt-scaled sum,
+      #     reward  = sum(scales[k] * term[k]) * dt
+      #     reward += success * success_reward          # 100.0, unscaled
+      # while mjlab's RewardManager.compute() applies one global `scale = dt` to
+      # every term, so a weight of 100 lands as 100 * 0.05 = 5 -- 20x weaker.
+      #
+      # `weight=100.0 / _STEP_DT` (i.e. 2000) cancels that, and run 20 tested it
+      # against run 14 as a clean single-variable comparison. It made everything
+      # worse: mean reward 150 -> 75, orientation_error 0.74 -> 1.10, and the
+      # policy's action std diverged 2.06 -> 5.95 over 3000 iterations where run
+      # 14 held flat at 2.79. The success rate did not move (consecutive_success
+      # 0.03-0.05 in both). A ~10^-5-per-step event worth 100 reward is a spike
+      # the critic cannot fit; the advantage estimate goes to noise and the
+      # entropy bonus then owns the std. See TRAINING_NOTES.md run 20.
+      #
+      # So: left at 100, matching every run 12-19, and knowingly 20x below
+      # playground. The discrepancy is real but it is not what is limiting this
+      # task -- fixing it is strictly harmful until the exploration noise floor
+      # is dealt with.
       weight=100.0,
       params={
         "command_name": "goal_orientation",
@@ -394,7 +418,7 @@ def make_reorient_env_cfg(
       # effect on the dynamics unless it overflows.
       njmax=220 if cube_condim <= 3 else 500,
       mujoco=MujocoCfg(
-        timestep=0.01,
+        timestep=_SIM_TIMESTEP,
         iterations=5,
         ls_iterations=8,
         integrator="euler",
@@ -409,7 +433,7 @@ def make_reorient_env_cfg(
       ),
     ),
     # ctrl_dt=0.05, sim_dt=0.01  -> decimation=5
-    decimation=5,
+    decimation=_DECIMATION,
     # episode_length=1000 steps at 20 Hz
     episode_length_s=50.0,
     scale_rewards_by_dt=True,
