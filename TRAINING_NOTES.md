@@ -4,17 +4,28 @@ Environment: `Mjlab-LeapXELA-Cube-Reorient` (mjlab manager-based API, MuJoCo War
 All runs on a single GPU, `--num-envs 4096`, logs under
 `logs/rsl_rl/leap_xela_cube_reorient/<timestamp>_<run-name>/`.
 
-Status as of 2026-08-31: **the bottleneck was the contact model.** Every reorient run so far
-turns the cube ~100 deg and then stalls 20-50 deg short of the goal (run 14 rollouts,
-the interlude after run 15). Per-axis probes localised the stall to the tip-over axes, and run 18 showed
-those axes fail only because `condim=3` makes torsional and rolling friction inert: at
-`condim=6` the same tip-over task goes from **0.28 to 2.22 rad/s with 7.5x fewer drops**.
-Run 19 is the first reorient run with that fixed.
+Status as of 2026-09-02: **the leading candidate is an exploration noise floor in the policy
+distribution.** The per-episode success rate has now been measured at **0.03-0.05 goals per
+episode, flat**, across two contact models, a 20x success weight, fine/progress reward shaping
+and 3000-10000 iterations (see run 19's counter section, which dates this measurement back to
+run 14). Converged `Mean action std` is 2.79, which at action scale 0.5 is a commanded joint
+delta of **1.40 rad per 50 ms control step** against joint ranges of 1-2 rad, and rsl_rl's
+Gaussian policy is unbounded so nothing pulls it back down. PPO is optimising the return of a
+policy whose noise is large enough to erase the difference between a fine terminal manoeuvre
+and a coarse hold. Run 21 is the direct test.
 
-Earlier framing, kept because runs 1-14 were read through it: *the policy reliably learns to
-hold the cube but not to reorient it; every configuration converges to a "park the cube at a
-compromise pose and farm episode length" solution.* The run 14 rollouts show that is not
-quite what is happening.
+Two earlier framings, kept because runs 1-19 were read through them:
+
+> **Retracted 2026-09-02.** *"The bottleneck was the contact model"* (status as of 2026-08-31),
+> from run 18's 7.8x on rotate_x at `condim=6`. Run 19 ran that exact change on the reorient
+> task and it landed on run 14's curve. The physics finding stands for the rotate tasks; it
+> **does not transfer to reorient**, which needs terminal precision rather than gross angular
+> velocity. See run 19.
+
+> **Corrected 2026-08-31.** *"The policy reliably learns to hold the cube but not to reorient
+> it; every configuration converges to a park-the-cube-and-farm-episode-length solution"*
+> (runs 1-14). The run 14 rollouts show it turns the cube ~100 deg and *then* stalls 20-50 deg
+> short of the goal — an approach phase followed by a stall, not immobility.
 
 > ### Validity warning — read before trusting runs 1–11
 >
@@ -52,6 +63,7 @@ quite what is happening.
 | Episode length | 50 s (1000 control steps) |
 | Actor / critic MLP | 512-256-128, ELU, obs normalization |
 | PPO | 24 steps/env, 5 epochs, 4 minibatches, lr 3e-4 adaptive, γ 0.99, λ 0.95, desired KL 0.01 (runs 13+ use playground's brax shape: 8192 envs × 40 steps, 32 minibatches, 4 epochs) |
+| Policy distribution | rsl_rl `GaussianDistribution` (**unbounded**), `init_std` 1.0, `entropy_coef` 0.01 — see the noise-floor diagnosis after run 20 |
 | Actor obs | joint pos, joint pos error from command, cube pos error from palm, cube orientation error matrix, last action |
 | Critic obs | actor obs + joint vel, fingertip positions rel. palm, cube lin/ang vel |
 | Action | delta joint position, scale 0.5, 16 hand joints |
@@ -87,7 +99,10 @@ No touch/tactile observations are involved yet — this is the pre-flex baseline
 | 16 | `rotatex-1800` | 1799 / 1800 | 85 min | Same task, reward axis (1,0,0) — tip-over. **0.284 rad/s, 3.93 drops/ep** |
 | 17 | `rotatey-1800` | 1799 / 1800 | 82 min | Reward axis (0,1,0) — the other tip-over. **0.575 rad/s, 2.31 drops/ep**, not converged |
 | 18 | `rotatex-condim6` | 1727 / 1800 (stopped early) | 94 min | Run 16 + `cube_condim=6`. **2.217 rad/s, 0.52 drops/ep** — 7.8× run 16 |
-| 19 | `reference-condim6` | running | ~220 min | Run 14 + `cube_condim=6`. The payoff test on the real task |
+| 19 | `reference-condim6` | 1208 / 3000 (host reboot) | 104 min | Run 14 + `cube_condim=6`. The payoff test. **No effect on reorient** — matches run 14 at matched iteration |
+| — | *`goals_reached` counter bug found* | — | — | Pinned at 0.0 in runs 12–19; `consecutive_success` was always correct and dates the real rate to run 14 |
+| 20 | `reference-successfix` | 2999 / 3000 | 220 min | Counter fix + success weight 100 → 2000 (`100/dt`). **Harmful** — error 0.74 → 1.10, std 2.06 → 5.95. Weight reverted |
+| 21 | `entropy-1e-3` | running (of 1500) | — | Run 14 + `entropy_coef` 0.01 → 0.001, sole change. The exploration-noise-floor probe |
 
 ---
 
@@ -412,6 +427,12 @@ Reading this:
 - Run 14 was flat over its last 1250 iterations (184.7 → 187.4 → 187.5 in 500-iteration
   blocks). Longer budgets are not the answer here either.
 
+> **Corrected 2026-09-02.** The `goals_reached` **0.0** above is a counter bug, not a
+> measurement — `success_count` was incremented on an unreachable branch for all of runs 12–19.
+> `consecutive_success`, which was never affected, reads **0.0395 goals/episode** at run 14's
+> iteration 2999. The reward decomposition and the "it is being paid to hold, and it holds"
+> reading are unchanged; the success rate was small but never zero. See run 19.
+
 ### Against the supervisor's numbers
 
 Step-matched at 205M steps (iteration 627 at 8192 × 40), run 13 read **176**; his three
@@ -542,7 +563,7 @@ by 2×**, so the two tip-over axes are not equivalent — consistent with the pa
 
 ---
 
-## 18. `rotatex-condim6` — the contact model was the bottleneck
+## 18. `rotatex-condim6` — the contact model was the bottleneck *for tipping*
 
 `condim` became a parameter of `get_cube_spec`/`get_cube_cfg` (validated to 1/3/4/6) and of
 `scripts/train.py` (`--cube-condim`). MuJoCo takes a dynamically generated contact's condim
@@ -579,9 +600,15 @@ Stopped at iteration 1727/1800; the cause was not captured because today's runs 
 without a console log. The numbers were converged and flat over the last 500 iterations, so
 this does not affect the result.
 
+> **Scope narrowed 2026-09-02.** Everything above stands as measured. What did *not* survive is
+> the extrapolation to the real task: run 19 puts `condim=6` on run 14's reorient config and
+> changes nothing. The heading originally read "the contact model was the bottleneck" — it is
+> the bottleneck for gross tip-over angular velocity, which is what this task rewards, and not
+> for reorient's terminal precision.
+
 ---
 
-## 19. `reference-condim6` — the payoff test (running)
+## 19. `reference-condim6` — the payoff test, answered: no
 
 Run 14's exact configuration plus `--cube-condim 6`. `diff` of the two `params/env.yaml`
 files is **3 lines**: `condim: 6` and `njmax: 220 → 500`. Same task, seed, batch shape,
@@ -600,13 +627,263 @@ Two things had to be fixed first, both of which would have quietly invalidated t
 Smoke test (3 iterations, 8192 envs): no NaN, **0 njmax overflows**, `dr_cube_friction`
 still present.
 
-What to look for against run 14 (187.5 mean reward, `orientation_error` 0.76,
-`goals_reached` 0.0, `cube_ang_speed` 0.70):
-- `goals_reached` above zero at all would be the first success this project has produced on
-  absolute goals.
-- Failing that, `orientation_error` dropping below ~0.5 would say the stall moved even if the
-  5.7° threshold is still out of reach.
-- Reward alone is a weak signal — run 14 farms 187 while reaching no goals.
+Pre-registered reading, written before the run (kept verbatim; see the counter caveat below):
+
+> What to look for against run 14 (187.5 mean reward, `orientation_error` 0.76,
+> `goals_reached` 0.0, `cube_ang_speed` 0.70):
+> - `goals_reached` above zero at all would be the first success this project has produced on
+>   absolute goals.
+> - Failing that, `orientation_error` dropping below ~0.5 would say the stall moved even if the
+>   5.7° threshold is still out of reach.
+> - Reward alone is a weak signal — run 14 farms 187 while reaching no goals.
+
+**The run died at iteration 1208/3000**, 104 min in (started 20:25, last checkpoint
+`model_1200.pt` at 22:09). The host rebooted; this machine goes down uncleanly every few hours.
+Resuming it is no longer worth the GPU time, because the 1208 iterations it did run already
+answer the question — through a counter that had been working the whole time while the one
+being watched was broken.
+
+### The counter that was structurally zero
+
+`goals_reached` reads **exactly 0.0 in every run from 12 to 19**. That was never a plateau, it
+was a bug: `success_count` was incremented inside the `elif self.cfg.update_goal_on_success:`
+branch of `_update_command`, and `use_mjx_goal_drift=True` takes the branch before it, so the
+increment was **unreachable** for the entire reference series. It is now incremented in
+`_update_metrics` off the success flag itself, exactly as playground does — how the goal is
+updated on success is independent of counting it.
+
+`consecutive_success` was **never** affected by this. It is accumulated in `_update_metrics`
+and was logged in every run. It is cleared on a goal resample, so it is not a per-episode goal
+count in the strict sense; but at these rates — order 0.03 goals per episode, i.e. two
+successes in one episode essentially never happens — it is numerically the same quantity. Run
+20 confirms that directly (`goals_reached` 0.0287 vs `consecutive_success` 0.0287, identical).
+So **the true success rate can be read retroactively, back to run 14.**
+
+Note for the curriculum: `goal_difficulty` promotes on `success_count`, the same counter, so the
+bug would have frozen promotion outright. But runs 9–11 ran with `use_mjx_goal_drift: false`
+(confirmed in `curriculum-10k/params/env.yaml`), which takes the working branch, and their
+logged `goals_reached` is nonzero throughout. **Runs 9–11 are not invalidated.** The trap is
+live for any future curriculum run on the reference config, which does have drift on.
+
+### Run 19 vs run 14
+
+Run 19 (condim 6), the 1208 iterations it completed:
+
+| iter | 149 | 449 | 749 | 1049 | 1199 |
+| --- | --- | --- | --- | --- | --- |
+| `consecutive_success` | 0.0000 | 0.0158 | 0.0188 | 0.0258 | 0.0374 |
+| `orientation_error` | 1.6622 | 1.3874 | 0.8925 | 0.9440 | 0.8960 |
+| `Mean action std` | 1.39 | 2.08 | 2.54 | 2.76 | 2.81 |
+
+Run 14 (condim 3), the full run:
+
+| iter | 749 | 1199 | 1649 | 2099 | 2549 | 2999 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `consecutive_success` | 0.0433 | 0.0349 | 0.0474 | 0.0379 | 0.0483 | 0.0395 |
+| `orientation_error` | 0.9164 | 0.8703 | 0.7686 | 0.7735 | 0.7712 | 0.7372 |
+| `Mean action std` | 2.66 | 2.80 | 2.78 | 2.79 | 2.77 | 2.79 |
+
+Matched at iteration 1199, the last point run 19 reached:
+
+| | `consecutive_success` | `orientation_error` | `Mean action std` |
+| --- | --- | --- | --- |
+| 14, condim 3 | 0.0349 | 0.8703 | 2.80 |
+| 19, condim 6 | 0.0374 | 0.8960 | 2.81 |
+
+**`condim=6` does nothing for reorient.** All three quantities are statistically identical at
+the matched iteration, and run 19's trajectory over 1200 iterations lies on top of run 14's.
+Resuming it to 3000 would buy a confirmation, not an answer — the pre-registered question
+("does `goals_reached` leave zero?") is answered by a counter that shows both runs sitting at
+the same nonzero-but-tiny rate.
+
+**This does not retract run 18.** The physics finding there is real and was measured on a
+converged run: at `condim=3` the torsional and rolling friction coefficients are inert, and
+turning them on makes the tip-over axis 7.8× faster at 7.5× fewer drops. What run 19 shows is
+that **the finding does not transfer to reorient**, and the reason is visible in what each task
+rewards. rotate_x pays for gross angular velocity, which is exactly what extra friction buys.
+Reorient needs *terminal precision* — parking the cube inside 5.7° and staying there — and
+nothing about the contact model was preventing that.
+
+> **Retracted 2026-09-02.** The status paragraph of 2026-08-31 said *"the bottleneck was the
+> contact model"*, on the strength of run 18. Run 19 is the controlled test of that claim on
+> the task that matters and it is negative. The bottleneck for reorient is elsewhere.
+
+---
+
+## 20. `reference-successfix` — the counter fix, and a 20× success weight
+
+Two changes on top of run 14, run to the full 3000 iterations (220 min, condim 3):
+
+1. The `success_count` fix above.
+2. `success` reward weight **100 → 2000**. Reason: mjlab multiplies every reward term by `dt`
+   (0.05 s) before summing, and playground does not, so a weight of 100 copied from Hamid's
+   config was being paid as 5 — the success bonus had been **20× too weak in every run to
+   date**. `100 / dt = 2000` restores playground's effective magnitude.
+
+Because change 1 turned out to reveal nothing new (below), this is effectively a clean
+single-variable test of change 2.
+
+| iter | 349 | 1149 | 1549 | 2999 |
+| --- | --- | --- | --- | --- |
+| mean reward | 143.60 | 118.31 | 109.74 | **75.05** |
+| `Mean action std` | 2.06 | 4.49 | 5.17 | **5.95** |
+| `consecutive_success` | — | — | — | 0.0287 |
+| `goals_reached` | — | — | — | 0.0287 |
+
+(`orientation_error` and the success counters were not read at the intermediate iterations;
+the final values are `orientation_error` 1.0998, episode length 953.69, `cube_fell`
+0.425/episode, difficulty pinned at 1.0.)
+
+**The 20× success weight is harmful.** Three independent readings, all pointing the same way:
+
+- **Reward falls monotonically within the run**, 143.6 → 75.05. Note the cross-run comparison
+  against run 14's 187.5 is confounded — the success term's weight changed, so total reward is
+  not on the same scale — but the *within-run* decline is not confounded, and run 14 was flat
+  over its final 1250 iterations where this run is still dropping.
+- **`orientation_error` is worse**: 1.0998 vs run 14's 0.7372. The policy holds the cube
+  further from the goal than the baseline does.
+- **`Mean action std` diverges**: 2.06 → 5.95, where run 14 sits flat at 2.77–2.80 for 3000
+  iterations. A rare, high-value bonus behind a threshold the policy cannot reliably clear
+  reads to PPO as an argument for more exploration, and there is nothing bounding that (see the
+  diagnosis below).
+- **The success rate does not move**: 0.0287, inside the 0.03–0.05 band every other run sits in.
+
+**Success weight reverted to 100** (commit `1132681`). The `dt` discrepancy against playground
+is real, is now documented, and is **deliberately left in place** — run 20 is the reason.
+
+**The counter fix revealed no new information.** Run 20's `goals_reached` of 0.0287 *is* run
+14's `consecutive_success` of 0.0395, the same quantity measured the same way. Across the run
+`goals_reached` oscillated between 0.02 and 0.06 with no trend from iteration 299 to 2899. The
+fix is worth keeping — the metric now means what its name says, and the curriculum's promotion
+criterion no longer reads a dead counter — but it **did not unlock anything**, and the honest
+statement is that the project's success rate was always this and was never zero.
+
+### What that leaves
+
+Per-episode goals reached has now been **0.03–0.05, flat**, across:
+
+| varied | runs | result |
+| --- | --- | --- |
+| contact model (`condim` 3 vs 6) | 14 vs 19 | 0.0349 vs 0.0374 at matched iteration |
+| success weight (100 vs 2000, i.e. 20×) | 14 vs 20 | 0.0395 vs 0.0287 |
+| reward shaping (`orientation_fine`, `orientation_progress`) | 2–4, 8 | no movement |
+| budget (3000 vs 10000 iterations) | 1, 8, 11, 14 | flat after ~250 |
+
+Four different families of intervention, one number. That pattern — everything changes, the
+outcome does not — is what motivated looking at the learner instead of the task.
+
+---
+
+## Diagnosis — an exploration noise floor (2026-09-02)
+
+The candidate that survives the table above is that **the policy's own action noise is the
+binding constraint**, and that it is not converging downward because nothing in this PPO
+implementation makes it.
+
+**1. The converged noise is enormous relative to the action space.**
+`Mean action std` converges to **2.79** (run 14, flat for 3000 iterations). The action term is
+delta joint position with `scale=0.5` and `clip_to_ctrl_limits=True`
+(`tasks/reorient/config/env_cfg.py`), `ema_alpha=1.0`, i.e. no smoothing. So the *commanded
+joint delta* has standard deviation **2.79 × 0.5 = 1.40 rad per 50 ms control step**, against
+joint ranges of roughly 1–2 rad.
+
+| | action std | commanded delta std | P(\|delta\| > 1.0 rad) |
+| --- | --- | --- | --- |
+| run 14 (converged) | 2.79 | 1.40 rad | **47%** |
+| run 20 (final) | 5.95 | 2.98 rad | **74%** |
+
+Roughly half of all sampled actions saturate the ctrl limits. Training-time behaviour is close
+to **random bang-bang joint targets**, low-pass filtered by the `kp=3` P-servo.
+
+**2. Nothing pulls it back down.** `entropy_coef: 0.01` (confirmed in the run's
+`params/agent.yaml`). Entropy of a 16-dimensional Gaussian at std 2.79 is 39.1, so the entropy
+bonus contributes `0.01 × 39.1 = 0.391` to the loss — against a **mean surrogate loss of
+0.004**. Two orders of magnitude apart. The entropy term is not a regulariser here; it is the
+objective.
+
+**3. And there is no finite optimum for it to reach.** rsl_rl's `GaussianDistribution` is
+**unbounded**: entropy is `const + log(std)`, so the entropy bonus pushes `log(std)` upward by
+a constant gradient forever, with no std at which the pressure stops.
+
+> **Verified against source, 2026-09-02** (brax 0.14.2 wheel + a `mujoco_playground` clone,
+> both read outside the project venv so the live run was untouched).
+>
+> - `brax/training/agents/ppo/networks.py:100` — `distribution_type: Literal['normal',
+>   'tanh_normal'] = **'tanh_normal'**`. The default is the squashed distribution, and
+>   `mujoco_playground` never overrides it (no `distribution_type` / `NormalTanh` reference
+>   anywhere in the repo).
+> - `brax/training/distribution.py:83-92` — entropy is computed **after** the transform:
+>   `dist.entropy() + postprocessor.forward_log_det_jacobian(sample)`. So it is the entropy of
+>   the *post-tanh* action distribution, which is supported on (-1, 1) and therefore capped at
+>   `log 2 = 0.693` per dimension.
+> - `mujoco_playground/config/manipulation_params.py:140-157` — `LeapCubeReorient` uses
+>   `entropy_cost = 1e-2`, 8192 envs, unroll 40, 32 minibatches, 4 updates/batch, lr 3e-4,
+>   (512, 256, 128). **Identical to our reference preset, including the entropy coefficient.**
+>
+> Numerically, entropy per dimension as a function of std:
+>
+> | std | brax (tanh-normal) | rsl_rl (unbounded Gaussian) |
+> | --- | --- | --- |
+> | 0.4 | 0.353 | 0.503 |
+> | 0.8 | **0.677** (peak) | 1.196 |
+> | 1.0 | 0.669 | 1.419 |
+> | 2.0 | -0.004 | 2.112 |
+> | **2.79** (our converged value) | **-0.853** | **2.445** |
+> | 5.95 (run 20) | -5.027 | 3.202 |
+>
+> **The same coefficient does opposite things.** brax's entropy bonus peaks at std ~0.8 and
+> then falls steeply, so at our converged std of 2.79 playground's own objective would be
+> pushing the std *down*. rsl_rl's grows as `+log(std)` forever, so it pushes *up* without
+> limit. `entropy_coef = 0.01` is not a shared setting that we happened to tune badly — it is
+> the same number attached to two objectives with opposite gradients above std ~0.8.
+
+**4. This is a parity gap the 2026-08-29 audit could not have found.** That audit diffed
+`MjModel` exhaustively and matched everything — timestep, solver, joint ranges, ctrlranges,
+damping, armature, frictionloss, actuator gains, masses, reward weights, action scale,
+decimation. It never compared the **policy distribution**. Same model, structurally different
+policy class, and no amount of model-level diffing would have surfaced it.
+
+**5. It was visible on day one and never followed up.** Run 1's notes record:
+*"`Policy/mean_std` also drifted **up** to 2.64 — the policy became noisier over time rather
+than sharpening."* That is this diagnosis, written on 2026-08-22 and read at the time as a
+curiosity.
+
+**Why this explains what nothing else does.** The rollout probe (interlude after run 15)
+measured the *mean* action reaching a median 27.6° of error, while the training-average error
+is ~42°. PPO optimises the return of the **noisy** policy, not of its mean. Under 1.4 rad of
+per-step joint noise, a fine terminal manoeuvre and a coarse hold near the goal score the
+same — the manoeuvre's advantage is inside the noise. Grasping is robust to that noise
+(`cube_fell` 0.15/episode); closing the last 30° is not. So every intervention on the reward
+side and every intervention on the contact side lands on the same plateau, because none of them
+change the thing that is destroying the terminal signal.
+
+**Run 2 is not evidence either way.** It lowered `init_std` 1.0 → 0.5 and `entropy_coef`
+0.01 → 0.002, which looks like this experiment — but it changed four things at once, on the
+pre-fix broken model, for 1000 iterations, with the shaped rewards. It cannot be read as a test
+of exploration noise.
+
+---
+
+## 21. `entropy-1e-3` — the noise-floor probe (running)
+
+Launched 2026-09-02 11:49. Run 14's exact configuration with **`--entropy-coef 0.001` as the
+only change** (0.01 → 0.001, confirmed as the sole diff in `params/agent.yaml`): 8192 envs,
+seed 42, condim 3, success weight back to 100, 1500 iterations. Shorter budget than run 14
+because run 14's own curve is flat from ~1200 on, so 1500 is enough to see the effect or its
+absence.
+
+**Pre-registered reading:**
+
+- If `Mean action std` falls below ~1.0 **and** `orientation_error` goes under 0.7 with
+  `consecutive_success` rising above the 0.03–0.05 band, the exploration noise floor was the
+  binding constraint, and the whole next phase of work is the policy distribution rather than
+  the task.
+- If `Mean action std` falls and `orientation_error` does **not** improve, the hypothesis is
+  eliminated — cleanly, and for about 70 minutes of GPU. That is the cheapest disconfirmation
+  available and is the reason this run is first in the queue.
+- Ambiguous outcome to watch for: std falls but the policy also stops exploring early and
+  `cube_fell` rises. That would mean 0.001 is too low rather than that noise was not the
+  problem, and the follow-up is a sweep rather than an abandonment.
 
 ---
 
@@ -624,40 +901,57 @@ What to look for against run 14 (187.5 mean reward, `orientation_error` 0.76,
   ~15 s and then stalls at 20–50° of error, 0/16 episodes reaching the 5.7° threshold.
 - **The stall is the tip-over component**: 88% of the spin error is closed, 64% of the tip
   error, and 96% of what is left at the best moment is tip-over.
-- **The tip-over failure was the contact model, not the hand.** At `condim=3` rotate_x scores
-  0.28 rad/s at 3.9 drops/episode; at `condim=6` the same task scores 2.22 at 0.52 — as fast
-  as the twist axis. `condim=3` was inherited from MJX/playground.
+- **`condim=3` does make torsional and rolling friction inert**, and turning them on is the
+  largest effect measured on this project *on the rotate tasks* — rotate_x goes 0.28 → 2.22
+  rad/s at 7.5× fewer drops.
+- **But the contact model is not the reorient bottleneck.** Run 19 puts `condim=6` on run 14's
+  exact config and lands on run 14's curve: 0.0374 vs 0.0349 goals/episode, 0.896 vs 0.870 rad
+  of error, at the matched iteration.
+- **The success rate was never zero and never moved.** `goals_reached` was pinned at 0.0 by a
+  counter bug in runs 12–19, but `consecutive_success` was always correct and reads
+  **0.03–0.05 goals per episode, flat**, across two contact models, a 20× success weight,
+  fine/progress reward shaping, and 3000–10000 iterations.
+- **A 20× success weight makes things worse**, not better (run 20): error 0.74 → 1.10, action
+  std diverging to 5.95, reward falling through the run, success rate unchanged.
 - We are at or slightly above the supervisor's own post-fix results for this config, and have
   run ~5× longer than he did.
 
+**The current diagnosis:** an **exploration noise floor**. Converged action std 2.79 × scale
+0.5 is 1.40 rad of commanded joint delta per 50 ms step, so ~47% of sampled actions saturate
+the ctrl limits; `entropy_coef × H` is 0.391 against a surrogate loss of 0.004; and rsl_rl's
+Gaussian is unbounded, so there is no std at which the entropy pressure stops. PPO optimises
+the noisy policy's return, under which the terminal manoeuvre and a coarse hold are
+indistinguishable. Run 21 tests it directly. **The tanh-squashed-Normal comparison against brax
+is unverified and must be confirmed before it is presented.**
+
 **Retracted along the way:** "friction is not the bottleneck" (runs 5–7 varied parameters
 `condim=3` ignores); "the policy holds the cube and never turns it" (it turns it, then
-stalls); "the hand can only tip the cube by dropping it" (true at condim 3 only).
-
-**Open — does condim 6 move the actual task?** Run 19 is the test. The rotate tasks reward
-raw angular velocity, which is the easiest thing for extra friction to buy; reorient needs
-*controlled* terminal precision, which is a stronger claim.
+stalls); "the hand can only tip the cube by dropping it" (true at condim 3 only); **"the
+bottleneck was the contact model"** (true for the rotate tasks, false for reorient — run 19);
+**"`goals_reached` is 0"** (a counter bug in runs 12–19; the real rate was always 0.03–0.05).
 
 **Candidate next steps, in order:**
 
-1. **Run 19 (`reference-condim6`).** Running. If `goals_reached` leaves zero, the line of
-   investigation that started with the parity audit is finished and the remaining work is
-   tuning.
-2. **If run 19 stalls too: tune the friction components that are now live.** `friction[1]`
-   0.05 and `friction[2]` 0.0001 have never been chosen — they were dead values inherited
-   from the MJX scene and only started mattering on 2026-08-31. `condim=4` (torsional only)
-   is the natural ablation to separate torsional from rolling.
-3. **Terminal precision on the reward.** The approach phase works; the last 20–50° does not.
-   The orientation reward goes flat near zero error — a fine-grained term, or a curriculum on
-   the threshold rather than on goal difficulty, targets the part that actually fails.
-4. **Curriculum promotion criterion.** `promote_at: 1.0` goal/episode lets difficulty ratchet
-   on marginal competence (run 11 rode the threshold to difficulty 0.9 without improving).
-   The whole curriculum line predates all three bug fixes *and* condim 6, and has not been
-   re-run since.
-5. **Extend rotate_y to convergence** (0.575 was still climbing at 1799) and re-run it at
-   condim 6, to check the x/y asymmetry survives the contact-model change.
-6. **Control resolution.** Action scale 0.5 with `ema_alpha` 1.0 and a 50 ms control step may
-   be too coarse. Untested, and a deliberate deviation from Hamid.
+1. **Run 21 (`entropy-1e-3`).** Running. Pre-registered reading above. Either it moves
+   `orientation_error` and the success rate together, or the noise-floor hypothesis is dead for
+   ~70 minutes of GPU.
+2. **If it works: the exploration / policy-distribution line.** In rough order of expected
+   value — a **tanh-squashed (bounded) action distribution** so the entropy bonus has a finite
+   optimum, which is also the parity fix against playground if the unverified claim above holds;
+   **`init_std`** (currently 1.0, and the policy climbs *away* from it); **action scale**
+   (0.5 with `clip_to_ctrl_limits` is what turns std 2.79 into bang-bang); and **control rate**
+   (50 ms with `ema_alpha=1.0`, no smoothing at all). These are all the same knob seen from
+   different sides and should be varied one at a time.
+3. **A kept deterministic-eval script.** Being written now. Terminal precision — min error
+   reached, fraction of episodes inside 5.7°, mean-action rollouts — is the quantity that
+   actually distinguishes these runs, and it has twice been measured with throwaway probes that
+   were not kept (the interlude after run 15). It should be a per-run artifact, not an
+   archaeology exercise.
+4. **Deprioritised, explicitly:** `condim=6` on reorient (run 19 answered it); resuming run 19
+   to 3000 (confirmation, not information); the goal curriculum (predates every fix, and its
+   promotion criterion needs re-checking against the fixed counter before it is trusted); the
+   friction sweep and `condim=4` ablation (they tune a knob that run 19 shows does not bind on
+   this task); extending rotate_y to convergence.
 
 **Fingertip geometry is deprioritised.** It was the leading suspect after run 14 — flat 4×4
 sensor pads where the plain LeapHand has rounded tips, plus Hamid's note that *the cube stops
@@ -667,16 +961,27 @@ the pads permit both twisting and tipping.
 **Open question for the supervisor:** `condim=6` is a deliberate deviation from his MJX scene
 and from playground, both of which use 3. Soft sensor pads arguably justify torsional
 friction physically, but it changes the contact model that everything else was matched to.
-Worth raising before results built on it are presented.
+**Now moot for reorient** — run 19 shows it changes nothing there, and reorient runs stay at
+condim 3. It still matters for the rotate tasks, where the effect is 7.8×, and for task 2 if
+tactile data is collected under it.
 
 **Infrastructure notes:**
 - `scripts/train.py` takes `--resume-from <checkpoint.pt>` (continues in the checkpoint's own
-  directory, `--max-iterations` read as a *total*), `--cube-condim`, and `--fingertip-friction`.
+  directory, `--max-iterations` read as a *total*), `--cube-condim`, `--fingertip-friction` and
+  `--entropy-coef`.
+- **`scripts/supervise_run.sh` had an off-by-one.** rsl_rl's last checkpoint of an
+  N-iteration run is `model_(N-1).pt`, so the `-ge MAX_ITERS` completion check never fired and
+  the supervisor relaunched the *finished* run 20 five times before its no-progress guard
+  tripped. Fixed. `RUN_NAME`, `MAX_ITERS` and `EXTRA_ARGS` now come from the environment, and
+  `EXTRA_ARGS` is applied on resume as well as on the initial launch — previously a resumed run
+  silently dropped its flags.
+- The host reboots uncleanly every few hours; it killed run 15 at 1789/3000 and run 19 at
+  1208/3000. The supervisor script plus a `@reboot` cron hook auto-resume from the newest
+  checkpoint.
 - **Redirect training runs to `logs/console/<name>_<timestamp>.log`.** Runs 16–18 were
   launched without it, which is why run 18 stopping 73 iterations early has no explanation.
-- The two rollout probes behind the interlude were throwaway scripts and were not kept. If
-  those measurements need repeating, the probe has to be rewritten — `scripts/render.py`
-  (untracked until now) is the starting point.
+- The two rollout probes behind the interlude were throwaway scripts and were not kept — see
+  next step 3, which exists to stop this recurring.
 - The hyperparameter sweep (`hyperparameter_search/run_sweep.py`, grid over cube size /
   friction / seed) is written but **has never been run** — no `best_run.yaml` exists. Given
   that the friction ablation turned out to be measuring nothing, re-scope it before using it.

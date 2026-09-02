@@ -149,9 +149,14 @@ class InHandReorientationCommand(CommandTerm):
     # NOT in _update_command's `elif update_goal_on_success` branch, where this
     # used to live. `use_mjx_goal_drift=True` makes that branch unreachable, so
     # success_count never incremented and `goals_reached` was pinned at exactly
-    # 0.0 for every run that used the drift (all of runs 12-19). The curriculum
-    # promotion criterion reads the same counter, so it could never promote
-    # either. How the goal is updated on success is independent of counting it.
+    # 0.0 for every run that used the drift (all of runs 12-19).
+    #
+    # Runs 9-11 are NOT affected: they set use_mjx_goal_drift=false, so the
+    # branch was live and their goals_reached is real. But the curriculum's
+    # promotion criterion reads this same counter, so the trap is live for any
+    # future curriculum run on the reference config, which does have drift on --
+    # difficulty would sit at its initial value forever with no error raised.
+    # How the goal is updated on success is independent of counting it.
     self.success_count += success
     self.metrics["cube_ang_speed"] = torch.linalg.vector_norm(
       self.object.data.root_link_ang_vel_w, dim=-1
