@@ -1,7 +1,17 @@
 # Task and training defaults (shared across all grid points).
-task_id: Mjlab-LeapXELA-Cube-Reorient
+# The Reference task is the one config that learns to reorient at all
+# (palm 1.92, cube scale 1.0); the plain Reorient task plateaus at reward ~150.
+task_id: Mjlab-LeapXELA-Cube-Reorient-Reference
 num_envs: 4096
-max_iterations: 10000
+# Sized so the DEFAULT grid below (4 frictions x 2 palm angles x 1 seed = 8 runs)
+# finishes in roughly a day. Run 14 took 213 min for 3000 iterations at this env
+# count, so 1500 is ~100 min per run and ~13 h for the grid. Every reference run
+# is flat well before 1500, so this is enough to rank configurations even though
+# it is not enough to call one converged -- re-run the winner long.
+# Widening any axis multiplies that: the full 4x4x3 grid in the comments below
+# is 48 runs, which is about a week. Check scripts/run_queue.sh before starting
+# anything that long; the host reboots every few hours.
+max_iterations: 1500
 wandb_project: leap_xela_hparam_search
 wandb_tags: [hyperparameter_search]
 upload_model: false
@@ -13,9 +23,39 @@ best_metric: Train/mean_reward
 # Base cube half-extent (m). Effective size = cube_half_size * cube_scale.
 cube_half_size: 0.035
 
-# Grid axes (lists are expanded; scalars are fixed).
+# --- Grid axes (lists are expanded; scalars are fixed) ---------------------
+
 cube_scale: [1.0]
+
+# Contact priority of the cube geom. Leave at 1: it is what makes the sliding
+# friction axis below mean anything. At 0 MuJoCo mixes contact friction as the
+# element-wise max, the fingertips' 0.5 and the pads' 0.2 win, and every
+# sliding value under 0.5 trains against identical physics -- measured, not
+# assumed: see eval/friction/sweep_priority0.json, where the fingertip contact
+# friction reads 0.50 for requested 0.05, 0.10, 0.20, 0.30 and 0.50 alike.
+# Include 0 only to reproduce runs 1-21.
+cube_priority: [1]
+
 cube_friction:
-  sliding: [0.049, 0.3]
+  # Bracketing the 0.3 the model has always used, roughly log-spaced. The slope
+  # test puts a physical meaning on each: a cube sticks on an incline up to
+  # atan(mu), so 0.1 -> 5.7 deg, 0.3 -> 16.7 deg, 0.6 -> 31 deg, 1.0 -> 45 deg
+  # (above which a cube topples before it slides, so 1.0 is the useful ceiling).
+  # Measured slip under the run-14 policy falls 84 -> 27 mm/s across this range.
+  sliding: [0.1, 0.3, 0.6, 1.0]
+  # Inert at condim 3 -- a 3D contact has no torsional direction. Left fixed so
+  # the grid does not spend runs on a parameter the solver never reads.
   torsional: 0.05
-seed: [1, 2, 3]
+
+# Palm pitch in radians; palm_euler = (roll, pitch, yaw). Hamid's Notion page
+# has palm 1.88 plateauing at reward ~150 for every cube scale he tried, while
+# 1.92 at cube scale 1.0 took off (141 -> 284). 1.84 and 1.96 bracket that so
+# the sweep can tell whether 1.92 is a peak or the edge of a plateau.
+# Default is the 1.88-vs-1.92 contrast that Hamid's page already separates.
+# Widen to [1.84, 1.88, 1.92, 1.96] to test whether 1.92 is a peak or an edge.
+palm_pitch: [1.88, 1.92]
+palm_euler_roll: 0.0
+palm_euler_yaw: -1.57
+
+# One seed per cell for the ranking pass; re-run the top few with [1, 2, 3].
+seed: [1]

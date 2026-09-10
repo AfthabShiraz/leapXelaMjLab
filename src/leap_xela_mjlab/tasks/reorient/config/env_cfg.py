@@ -41,18 +41,66 @@ def _cube_mass_for_half_size(half_size: float) -> float:
   return _DEFAULT_CUBE_MASS * scale**3
 
 
+def _unoise(magnitude: float) -> Unoise | None:
+  """Symmetric uniform noise, or None when scaled to zero.
+
+  ``UniformNoiseCfg`` rejects n_min == n_max, so ``obs_noise_scale=0`` has to
+  drop the term's noise rather than pass a zero-width range.
+  """
+  return Unoise(n_min=-magnitude, n_max=magnitude) if magnitude > 0.0 else None
+
+
 def make_reorient_env_cfg(
   *,
   finger_tip_type: str = "Box",
   play: bool = False,
   preset: str = "curriculum",
   enable_perturbations: bool = False,
+  # Global multiplier on the actor's observation noise. This is playground's own
+  # ``obs_noise.level`` (default_config: level=1.0 over scales joint_pos 0.05 /
+  # cube_pos 0.02 / cube_ori 0.1), which this port hard-coded away rather than
+  # exposed -- so 1.0 is exact parity and this flag only makes the knob
+  # reachable.
+  #
+  # Why it is worth turning. ``cube_ori`` noise is +/-0.1 on rotation-matrix
+  # entries: per component std 0.058, which tilts a unit column by ~0.082 rad
+  # ~= 4.7 deg. The success threshold is 0.1 rad = 5.7 deg. The measurement
+  # noise is the same order as the target the policy is being asked to hit, so
+  # it cannot perceive whether it is inside the threshold and cannot learn to
+  # servo there. Note the eval already runs with corruption OFF (``play`` sets
+  # ``enable_corruption = False`` below) and the policy still stops at 26-27
+  # deg, which is the signature of a policy trained blind rather than one being
+  # blinded at test time.
+  obs_noise_scale: float = 1.0,
   cube_half_size: float = _DEFAULT_CUBE_HALF_SIZE,
   cube_mass: float | None = None,
   cube_friction_sliding: float = 0.3,
   cube_friction_torsional: float = 0.05,
   disable_cube_friction_dr: bool = False,
   cube_condim: int = 3,
+  # Contact-parameter priority for the cube geom. At the default 1 the cube
+  # outranks every hand geom (all priority 0), so MuJoCo takes condim/friction
+  # from the cube instead of element-wise-maxing the pair. Without this,
+  # ``cube_friction_sliding`` is silently discarded at the four fingertips
+  # (friction 0.5 > the cube's 0.3) -- i.e. exactly where the grasp is. Set 0
+  # to reproduce runs 1-21. See ``robots/cube.get_cube_spec`` for the details.
+  cube_priority: int = 1,
+  # Hand-base orientation as xyz Euler, formerly reachable only by regenerating
+  # the MJCF and registering a new ``finger_tip_type``. ``None`` keeps the angle
+  # baked into the chosen model file (Box = 1.88, Box_palm192 = 1.92).
+  palm_euler: tuple[float, float, float] | None = None,
+  # Goal-update and terminal-shaping overrides. ``None`` means "whatever the
+  # preset says"; these exist because the two knobs have never been varied
+  # independently -- every drift-off run in TRAINING_NOTES.md is also a
+  # fine-term + curriculum run, so the Aug-22 line cannot separate them.
+  goal_drift: bool | None = None,
+  goal_resample_on_success: bool | None = None,
+  orientation_fine: bool | None = None,
+  # L2 penalty on raw action MAGNITUDE. 0.0 keeps the historical behaviour
+  # (runs 1-26), where only the action *rate* was penalized and the policy's
+  # mean action ran away to ~13 -- 3x the full joint range once scaled, i.e.
+  # permanently clipped. See ``mdp.rewards.action_l2``.
+  action_l2_weight: float = 0.0,
 ) -> ManagerBasedRlEnvCfg:
   # "baseline" reproduces the pre-curriculum config used by run #1
   # (`baseline-no-touch-10k`) in TRAINING_NOTES.md, so those runs can be repeated
@@ -61,12 +109,26 @@ def make_reorient_env_cfg(
     raise ValueError(f"Unknown preset {preset!r}; expected 'baseline' or 'curriculum'.")
   baseline = preset == "baseline"
 
+  # With both goal-update paths off the goal is fixed for the whole episode, so
+  # the success bonus becomes a dense dwell reward instead of a one-shot spike
+  # that throws the goal ~2.6 rad away (see InHandReorientationCommand's drift
+  # kick). ``consecutive_success`` then reads as steps-inside-threshold rather
+  # than a near-binary hit count.
+  use_drift = baseline if goal_drift is None else goal_drift
+  resample_on_success = (
+    True if goal_resample_on_success is None else goal_resample_on_success
+  )
+  # ``cube_orientation_tolerance`` has bounds (0, 0.2), so it is exactly flat
+  # below 0.2 rad: nothing in the baseline preset pays for the last 11 degrees.
+  # The fine term is the only thing in this file with gradient there.
+  use_fine = (not baseline) if orientation_fine is None else orientation_fine
+
   robot_cfg = SceneEntityCfg("robot", joint_names=(".*",))
 
   actor_terms = {
     "joint_pos": ObservationTermCfg(
       func=reorient_mdp.joint_pos_abs,
-      noise=Unoise(n_min=-0.05, n_max=0.05),
+      noise=_unoise(0.05 * obs_noise_scale),
       params={"asset_cfg": robot_cfg},
     ),
     "joint_pos_error": ObservationTermCfg(
@@ -75,12 +137,12 @@ def make_reorient_env_cfg(
     ),
     "cube_pos_error": ObservationTermCfg(
       func=reorient_mdp.cube_pos_error_from_palm,
-      noise=Unoise(n_min=-0.02, n_max=0.02),
+      noise=_unoise(0.02 * obs_noise_scale),
       params={"object_name": "cube"},
     ),
     "cube_ori_error": ObservationTermCfg(
       func=reorient_mdp.cube_ori_error_mat,
-      noise=Unoise(n_min=-0.1, n_max=0.1),
+      noise=_unoise(0.1 * obs_noise_scale),
       params={"command_name": "goal_orientation", "object_name": "cube"},
     ),
     "last_action": ObservationTermCfg(func=envs_mdp.last_action),
@@ -155,8 +217,8 @@ def make_reorient_env_cfg(
       asset_name="cube",
       goal_asset_name="goal",
       orientation_success_threshold=0.1 if baseline else 0.4,
-      update_goal_on_success=True,
-      use_mjx_goal_drift=baseline,
+      update_goal_on_success=resample_on_success,
+      use_mjx_goal_drift=use_drift,
       goal_relative_to_object=not baseline,
       # Absolute goals over the full +-pi span, matching the original
       # `rand * torch.pi` sampling, since span = pi * difficulty.
@@ -282,6 +344,10 @@ def make_reorient_env_cfg(
       func=reorient_mdp.action_rate_l2,
       weight=-0.001,
     ),
+    "action_l2": RewardTermCfg(
+      func=reorient_mdp.action_l2,
+      weight=-abs(action_l2_weight),
+    ),
     "joint_vel": RewardTermCfg(
       func=reorient_mdp.joint_vel_l2,
       weight=0.0,
@@ -323,7 +389,7 @@ def make_reorient_env_cfg(
     ),
   }
 
-  if not baseline:
+  if use_fine:
     rewards["orientation_fine"] = RewardTermCfg(
       func=reorient_mdp.cube_orientation_fine,
       weight=5.0,
@@ -374,13 +440,16 @@ def make_reorient_env_cfg(
     scene=SceneCfg(
       terrain=TerrainEntityCfg(terrain_type="plane"),
       entities={
-        "robot": get_leap_xela_cfg(finger_tip_type=finger_tip_type),
+        "robot": get_leap_xela_cfg(
+          finger_tip_type=finger_tip_type, palm_euler=palm_euler
+        ),
         "cube": get_cube_cfg(
           half_size=cube_half_size,
           mass=cube_mass,
           friction_sliding=cube_friction_sliding,
           friction_torsional=cube_friction_torsional,
           condim=cube_condim,
+          priority=cube_priority,
         ),
         "goal": get_goal_cube_cfg(half_size=cube_half_size),
       },
@@ -445,12 +514,19 @@ def make_reorient_env_cfg(
     "finger_tip_type": finger_tip_type,
     "preset": preset,
     "enable_perturbations": enable_perturbations,
+    "obs_noise_scale": obs_noise_scale,
     "cube_half_size": cube_half_size,
     "cube_mass": cube_mass,
     "cube_friction_sliding": cube_friction_sliding,
     "cube_friction_torsional": cube_friction_torsional,
     "disable_cube_friction_dr": disable_cube_friction_dr,
     "cube_condim": cube_condim,
+    "cube_priority": cube_priority,
+    "palm_euler": palm_euler,
+    "goal_drift": goal_drift,
+    "goal_resample_on_success": goal_resample_on_success,
+    "orientation_fine": orientation_fine,
+    "action_l2_weight": action_l2_weight,
   }
 
   if play:

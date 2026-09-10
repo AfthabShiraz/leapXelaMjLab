@@ -4,17 +4,23 @@ Environment: `Mjlab-LeapXELA-Cube-Reorient` (mjlab manager-based API, MuJoCo War
 All runs on a single GPU, `--num-envs 4096`, logs under
 `logs/rsl_rl/leap_xela_cube_reorient/<timestamp>_<run-name>/`.
 
-Status as of 2026-09-02: **the leading candidate is an exploration noise floor in the policy
-distribution.** The per-episode success rate has now been measured at **0.03-0.05 goals per
-episode, flat**, across two contact models, a 20x success weight, fine/progress reward shaping
-and 3000-10000 iterations (see run 19's counter section, which dates this measurement back to
-run 14). Converged `Mean action std` is 2.79, which at action scale 0.5 is a commanded joint
-delta of **1.40 rad per 50 ms control step** against joint ranges of 1-2 rad, and rsl_rl's
-Gaussian policy is unbounded so nothing pulls it back down. PPO is optimising the return of a
-policy whose noise is large enough to erase the difference between a fine terminal manoeuvre
-and a coarse hold. Run 21 is the direct test.
+Status as of 2026-09-02 (evening): **no hypothesis is currently in the lead.** The
+per-episode success rate has now been measured at **0.03-0.05 goals per episode, flat**,
+across two contact models, a 20x success weight, fine/progress reward shaping, an order of
+magnitude of exploration noise, and 3000-10000 iterations (see run 19's counter section,
+which dates this measurement back to run 14). Run 21 cut `entropy_coef` 10x, which collapsed
+`Mean action std` from 2.79 to 0.39 — the intervention did exactly what it was designed to
+do — and the task did not move. The exploration-noise-floor diagnosis this file led with
+earlier in the day is **eliminated**; see run 21.
 
-Two earlier framings, kept because runs 1-19 were read through them:
+Earlier framings, kept because runs 1-21 were read through them:
+
+> **Retracted 2026-09-02 (evening).** *"The leading candidate is an exploration noise floor in
+> the policy distribution"* (status as of 2026-09-02, morning), from run 14's converged
+> `Mean action std` of 2.79 and run 20's divergence to 5.95. Run 21 took the std to 0.39 by
+> the most direct route available and the task was unchanged — slightly worse on error,
+> identical on success rate, same 30 deg tip-over stall in the deterministic eval. See run 21
+> and the diagnosis section, which is kept as history.
 
 > **Retracted 2026-09-02.** *"The bottleneck was the contact model"* (status as of 2026-08-31),
 > from run 18's 7.8x on rotate_x at `condim=6`. Run 19 ran that exact change on the reorient
@@ -102,7 +108,12 @@ No touch/tactile observations are involved yet — this is the pre-flex baseline
 | 19 | `reference-condim6` | 1208 / 3000 (host reboot) | 104 min | Run 14 + `cube_condim=6`. The payoff test. **No effect on reorient** — matches run 14 at matched iteration |
 | — | *`goals_reached` counter bug found* | — | — | Pinned at 0.0 in runs 12–19; `consecutive_success` was always correct and dates the real rate to run 14 |
 | 20 | `reference-successfix` | 2999 / 3000 | 220 min | Counter fix + success weight 100 → 2000 (`100/dt`). **Harmful** — error 0.74 → 1.10, std 2.06 → 5.95. Weight reverted |
-| 21 | `entropy-1e-3` | running (of 1500) | — | Run 14 + `entropy_coef` 0.01 → 0.001, sole change. The exploration-noise-floor probe |
+| 21 | `entropy-1e-3` | 1499 / 1500 | 99 min | Run 14 + `entropy_coef` 0.01 → 0.001, sole change. **Hypothesis eliminated** — std 2.79 → 0.39, error and success rate unmoved |
+| 22 | `fixed-goal` | 1499 / 1500 | 103 min | Run 14 + `--goal-drift False --goal-resample-on-success False`, goal pinned all episode. **Much worse** — deterministic best error 77° vs run 14's 33° under the identical pinned-goal measurement |
+| 23 | `orientation-fine` | 650 / 1500 (host reboot, never resumed) | 44 min | Run 14 + `--orientation-fine True`, the long-tail reward term. **Worse** — 64° vs 37° against run 14 *at matched iteration 600* |
+| 24 | `reference-seed7` | 1499 / 1500 | 103 min | Run 14, `seed` 42 → 7, sole change. **Reproduces run 14** — 34° vs 33°. Numbered after 22–23 to keep the "runs 22–23" pairing that `train.py` cites; it ran chronologically between them |
+| 25 | *contact priority* (no training) | — | — | Cube geom given `priority=1`. The cube's sliding friction was previously discarded at the fingertips (max mixing, 0.5 > 0.3), so runs 5–7 and `dr_cube_friction` varied nothing. **The grasp was not thereby stuck low** — `dr_fingertip_friction` held it at U(0.5, 1.0); see the 2026-09-06 correction. Contact friction is now the cube's, and palm angle and sliding friction are hyperparameters |
+| 26 | `friction08-prio1` | 1499 / 1500 | 103 min | Run 14 + `--cube-priority 1 --cube-friction-sliding 0.8`, the friction payoff test. **Null on the headline** — best error 26.3° → 25.1°, inside run 24's seed noise. But the error *reallocated*: tip closure 66.9 → 73.1%, spin closure 93.5 → 76.7% |
 
 ---
 
@@ -774,7 +785,14 @@ outcome does not — is what motivated looking at the learner instead of the tas
 
 ---
 
-## Diagnosis — an exploration noise floor (2026-09-02)
+## Diagnosis — an exploration noise floor (2026-09-02, since eliminated)
+
+> **Eliminated by run 21, later the same day.** This section is kept because it is what
+> motivated run 21, and because its *measurements* are correct — the converged action std
+> really is 2.79, the entropy bonus really does dominate the surrogate loss by two orders of
+> magnitude, and the Gaussian really is unbounded. What is wrong is the conclusion that this
+> was **the** binding constraint. Cutting `entropy_coef` 10× took the std to 0.39 and changed
+> nothing about the task. Read what follows as history.
 
 The candidate that survives the table above is that **the policy's own action noise is the
 binding constraint**, and that it is not converging downward because nothing in this PPO
@@ -864,26 +882,85 @@ of exploration noise.
 
 ---
 
-## 21. `entropy-1e-3` — the noise-floor probe (running)
+## 21. `entropy-1e-3` — the noise-floor probe, answered: no
 
-Launched 2026-09-02 11:49. Run 14's exact configuration with **`--entropy-coef 0.001` as the
-only change** (0.01 → 0.001, confirmed as the sole diff in `params/agent.yaml`): 8192 envs,
-seed 42, condim 3, success weight back to 100, 1500 iterations. Shorter budget than run 14
-because run 14's own curve is flat from ~1200 on, so 1500 is enough to see the effect or its
-absence.
+Launched 2026-09-02 11:49, **completed 1499/1500, rc=0, 1 h 39 m at 78.7 k steps/s.** It ran
+as a single uninterrupted segment — `supervise_run.sh` started it fresh and never had to
+resume, the first long run on this host in some time that did not have to be pieced together
+across a reboot.
 
-**Pre-registered reading:**
+Run 14's exact configuration with **`--entropy-coef 0.001` as the only change** — verified
+after the fact rather than assumed, by diffing the two runs' saved configs. `params/agent.yaml`
+differs only in `entropy_coef` (0.01 → 0.001) and the three bookkeeping fields
+`max_iterations`, `save_interval` and `run_name`; `params/env.yaml` differs only by the new
+explicit `cube_condim: 3` key, which is run 14's implicit value. 8192 envs, seed 42, condim 3,
+success weight back to 100, 1500 iterations — a shorter budget than run 14 because run 14's own
+curve is flat from ~1200 on.
 
-- If `Mean action std` falls below ~1.0 **and** `orientation_error` goes under 0.7 with
-  `consecutive_success` rising above the 0.03–0.05 band, the exploration noise floor was the
-  binding constraint, and the whole next phase of work is the policy distribution rather than
-  the task.
-- If `Mean action std` falls and `orientation_error` does **not** improve, the hypothesis is
-  eliminated — cleanly, and for about 70 minutes of GPU. That is the cheapest disconfirmation
-  available and is the reason this run is first in the queue.
-- Ambiguous outcome to watch for: std falls but the policy also stops exploring early and
-  `cube_fell` rises. That would mean 0.001 is too low rather than that noise was not the
-  problem, and the follow-up is a sweep rather than an abandonment.
+**This is the second branch of the pre-registered reading, and the hypothesis is eliminated.**
+`Mean action std` fell **2.79 → 0.39**, and fell *monotonically* — 1.00, 0.64, 0.50, 0.43,
+0.41, 0.39 at iterations 0/250/500/750/1000/1499 — where run 14 climbs *away* from its
+`init_std` of 1.0 (1.01, 1.56, 2.26, 2.67, 2.77, then flat at 2.79 for 2000 iterations). The
+knob worked, at the first setting tried, and in the intended direction. `orientation_error` did
+not follow it.
+
+Iteration-matched, mean ± sd over the last 100 iterations of each window:
+
+| | run 21 @ 1400–1499 | run 14 @ 1400–1499 | run 14 @ 2900–2999 |
+| --- | --- | --- | --- |
+| `orientation_error` (rad) | **0.874 ± 0.045** | 0.819 ± 0.032 | 0.755 ± 0.028 |
+| `goals_reached` / `consecutive_success` | **0.0312 ± 0.0127** | 0.0298 ± 0.0096 | 0.0330 ± 0.0103 |
+| `cube_fell` (per episode) | 0.224 ± 0.136 | 0.167 ± 0.070 | 0.149 ± 0.058 |
+
+At the matched iteration run 21 is *slightly worse* on error, indistinguishable on success
+rate, and sits in the same 0.03–0.05 band as every other run in this file. The third,
+ambiguous branch — std falls but `cube_fell` rises, meaning 0.001 was simply too low — is not
+what happened either: drops are up by a fifth of a drop per episode, within the run-to-run
+scatter of runs 14, 19 and 20, and nowhere near a policy that has stopped exploring and started
+failing.
+
+**Do not quote the final iteration's `goals_reached` of 0.0754.** It is the last line of the
+console log and therefore the number that catches the eye, but the band it sits in has a
+standard deviation of 0.013, so 0.0754 is a **>3σ single-iteration spike**, not a doubling.
+Run 21's honest success rate is **0.031**. Single-iteration values of this metric have already
+been over-read once on this project; the 100-iteration mean is the number to quote.
+
+**Mean reward rose while the task metric did not** — 204.9 ± 5.1 against run 14's 180.9 ± 4.4
+at the matched iteration. This is not an improvement. A policy at std 0.39 thrashes far less
+than one at 2.79, so it pays much smaller `action_rate` and `energy` penalties and holds the
+cube more steadily for the `position` term, all without getting closer to the goal. **Total
+reward is not comparable across entropy settings** — the same confound that made run 20's
+cross-run reward comparison unreadable, arriving from the opposite direction.
+
+### Deterministic evaluation
+
+Both checkpoints scored with `scripts/eval_policy.py` under identical settings — 32 envs ×
+700 steps, seed 7, **mean actions** (the learned std is loaded and deliberately not sampled,
+so this measures the policy rather than its noise). Raw numbers in `eval/run21_det.json` and
+`eval/run14_det.json`, console output in `eval/AUTO_EVAL_REPORT.txt`.
+
+| median over 32 episodes | run 21 (`model_1499.pt`) | run 14 (`model_2999.pt`) |
+| --- | --- | --- |
+| minimum error reached | 30.1° | **25.6°** |
+| final error | 35.5° | **30.2°** |
+| success (< 5.7° at any point) | **0/32** | **0/32** |
+| spin `r_z` reduction | 90.5% | 94.2% |
+| tip `r_xy` reduction | 62.2% | 66.0% |
+| drops in 700 steps | 2 | 0 |
+
+The eval is **not iteration-matched** — run 21's checkpoint is 1500 iterations against run
+14's 3000 — so run 21 is not strictly *behind* here. But it is nowhere *ahead*, at one seventh
+the action noise, on the one metric chosen precisely because it isolates terminal precision.
+And the failure has the same shape: spin ~90% closed, tip-over ~62% closed, residual error
+dominated by tip-over. `model_1499.pt` exists in run 14's directory if the properly matched
+comparison is wanted later.
+
+**What this rules out**, precisely. Not "exploration does not matter" in general, but the
+specific mechanism this file argued for: that a converged std of 2.79 was drowning the fine
+terminal manoeuvre, and that a policy able to act precisely would find the goal. Run 21 **is**
+that policy — std 0.39, a commanded joint delta of 0.20 rad per 50 ms step instead of 1.40 —
+and it reaches the same ~30° and stops. Whatever prevents the last 30° of tip-over, the
+policy's own action noise is not it.
 
 ---
 
@@ -913,45 +990,66 @@ absence.
   fine/progress reward shaping, and 3000–10000 iterations.
 - **A 20× success weight makes things worse**, not better (run 20): error 0.74 → 1.10, action
   std diverging to 5.95, reward falling through the run, success rate unchanged.
+- **Exploration noise is not the bottleneck either.** Run 21 cuts `entropy_coef` 10×, which
+  collapses `Mean action std` 2.79 → 0.39 — a 7× cut in commanded joint delta, 1.40 → 0.20 rad
+  per step — and the task does not move: error 0.874 vs 0.819 at the matched iteration, success
+  rate 0.031 vs 0.030, and the deterministic eval still stops at 30° with 0/32 successes.
+- **The tip-over stall survives every intervention tried so far**, the low-noise policy
+  included. Run 21 closes 90% of the spin error and 62% of the tip error — run 14's split, at
+  one seventh the action noise.
 - We are at or slightly above the supervisor's own post-fix results for this config, and have
   run ~5× longer than he did.
 
-**The current diagnosis:** an **exploration noise floor**. Converged action std 2.79 × scale
-0.5 is 1.40 rad of commanded joint delta per 50 ms step, so ~47% of sampled actions saturate
-the ctrl limits; `entropy_coef × H` is 0.391 against a surrogate loss of 0.004; and rsl_rl's
-Gaussian is unbounded, so there is no std at which the entropy pressure stops. PPO optimises
-the noisy policy's return, under which the terminal manoeuvre and a coarse hold are
-indistinguishable. Run 21 tests it directly. **The tanh-squashed-Normal comparison against brax
-is unverified and must be confirmed before it is presented.**
+**There is currently no diagnosis.** The exploration-noise-floor account was the leading
+candidate for one day and run 21 killed it. The measurements behind it stand — converged action
+std 2.79 × scale 0.5 is 1.40 rad of commanded joint delta per 50 ms step, ~47% of sampled
+actions saturate the ctrl limits, `entropy_coef × H` is 0.391 against a surrogate loss of 0.004,
+and rsl_rl's Gaussian is genuinely unbounded — but at std 0.39 none of that is true any more
+and the policy behaves the same. **The tanh-squashed-Normal comparison against brax remains
+unverified**, and is now a question about port parity rather than a candidate explanation.
 
 **Retracted along the way:** "friction is not the bottleneck" (runs 5–7 varied parameters
-`condim=3` ignores); "the policy holds the cube and never turns it" (it turns it, then
+`condim=3` ignores — and, per run 25, a *sliding* friction the fingertips were overriding
+anyway, so those three runs were doubly empty); "the policy holds the cube and never turns it" (it turns it, then
 stalls); "the hand can only tip the cube by dropping it" (true at condim 3 only); **"the
 bottleneck was the contact model"** (true for the rotate tasks, false for reorient — run 19);
-**"`goals_reached` is 0"** (a counter bug in runs 12–19; the real rate was always 0.03–0.05).
+**"`goals_reached` is 0"** (a counter bug in runs 12–19; the real rate was always 0.03–0.05);
+**"the bottleneck is an exploration noise floor"** (the leading hypothesis for a day — run 21
+took the action std from 2.79 to 0.39 and nothing about the task changed).
 
-**Candidate next steps, in order:**
+**Where the previous next-step list stands after run 21:**
 
-1. **Run 21 (`entropy-1e-3`).** Running. Pre-registered reading above. Either it moves
-   `orientation_error` and the success rate together, or the noise-floor hypothesis is dead for
-   ~70 minutes of GPU.
-2. **If it works: the exploration / policy-distribution line.** In rough order of expected
-   value — a **tanh-squashed (bounded) action distribution** so the entropy bonus has a finite
-   optimum, which is also the parity fix against playground if the unverified claim above holds;
-   **`init_std`** (currently 1.0, and the policy climbs *away* from it); **action scale**
-   (0.5 with `clip_to_ctrl_limits` is what turns std 2.79 into bang-bang); and **control rate**
-   (50 ms with `ema_alpha=1.0`, no smoothing at all). These are all the same knob seen from
-   different sides and should be varied one at a time.
-3. **A kept deterministic-eval script.** Being written now. Terminal precision — min error
-   reached, fraction of episodes inside 5.7°, mean-action rollouts — is the quantity that
-   actually distinguishes these runs, and it has twice been measured with throwaway probes that
-   were not kept (the interlude after run 15). It should be a per-run artifact, not an
-   archaeology exercise.
+1. **Run 21 (`entropy-1e-3`) — done, and negative.** The pre-registered disconfirmation fired,
+   for 99 minutes of GPU as budgeted. It is the cheapest thing this project has learned in a
+   fortnight, and it closes the line it was testing.
+2. **The exploration / policy-distribution line — motivation gone.** It was listed as "if it
+   works", explicitly conditional on run 21, and run 21 did not work. The headline proposal was
+   a **tanh-squashed (bounded) action distribution** so the entropy bonus has a finite optimum
+   — but run 21 has already *delivered the low-std regime a bounded distribution would produce*,
+   by a cruder route, and it reproduced run 14's behaviour instead of beating it. Implementing
+   tanh now should be expected to land on run 21, not on a fix. The brax parity question is
+   still worth settling as a **fact about the port** (and the claim is still unverified), but it
+   is no longer a candidate explanation. **`init_std`**, **action scale** and **control rate**
+   are the same knob seen from other sides and inherit the same downgrade.
+3. **A kept deterministic-eval script — done.** `scripts/eval_policy.py` (mean-action rollouts,
+   per-episode min/final error, world-frame spin/tip decomposition, drop counts, JSON out) plus
+   `scripts/auto_eval_run21.sh`, which waited for the checkpoint, waited for the trainer to free
+   the GPU, and scored both runs unattended under identical settings. Artifacts in `eval/`.
+   Terminal precision is now a per-run artifact rather than an archaeology exercise — run 21 is
+   the first run scored this way at launch time rather than in hindsight.
 4. **Deprioritised, explicitly:** `condim=6` on reorient (run 19 answered it); resuming run 19
    to 3000 (confirmation, not information); the goal curriculum (predates every fix, and its
    promotion criterion needs re-checking against the fixed counter before it is trusted); the
    friction sweep and `condim=4` ablation (they tune a knob that run 19 shows does not bind on
    this task); extending rotate_y to convergence.
+
+**What is actually open.** Four families of intervention — contact model, reward shaping and
+weighting, training budget, and now exploration noise — have each been varied by a large factor,
+and the per-episode success rate has not left 0.03–0.05. No replacement hypothesis is being
+put forward here, and this file should not pretend one is ready. Whatever the next candidate
+turns out to be, the evidence constrains it to explain a specific thing: the policy closes ~90%
+of the *spin* error and stalls with ~30° of *tip-over* left, at std 2.79 and at std 0.39 alike,
+without dropping the cube.
 
 **Fingertip geometry is deprioritised.** It was the leading suspect after run 14 — flat 4×4
 sensor pads where the plain LeapHand has rounded tips, plus Hamid's note that *the cube stops
@@ -966,6 +1064,13 @@ condim 3. It still matters for the rotate tasks, where the effect is 7.8×, and 
 tactile data is collected under it.
 
 **Infrastructure notes:**
+- **`scripts/supervise_run.sh` still defaults to run 21** — `RUN_NAME=entropy-1e-3`,
+  `MAX_ITERS=1500`, `EXTRA_ARGS=--entropy-coef 0.001`. These are environment-overridable, but
+  the `@reboot` cron hook passes nothing, so **the defaults must be edited before the next run
+  is launched**, not after. Both `@reboot` hooks (`supervise_run.sh` and `auto_eval_run21.sh`)
+  are still armed and both are idempotent — the supervisor's completion check now fires
+  correctly after the off-by-one fix, and the eval script returns early on `ALL DONE` — so a
+  reboot today restarts nothing.
 - `scripts/train.py` takes `--resume-from <checkpoint.pt>` (continues in the checkpoint's own
   directory, `--max-iterations` read as a *total*), `--cube-condim`, `--fingertip-friction` and
   `--entropy-coef`.
@@ -990,3 +1095,850 @@ tactile data is collected under it.
 observations behind a flag. The flex model is a large step up in cost (nv 1120 vs 16,
 neq 386) and needs `njmax`/`nconmax` re-sized again — and now `condim` decided for the
 taxel contacts too.
+
+---
+
+## 22–24. The two reward interventions, and a seed replicate (2026-09-02, scored 2026-09-05)
+
+Three runs finished on 2026-09-02 and sat unwritten for three days. All three are run 14 with
+exactly one change, 8192 envs, 1500-iteration budget.
+
+| # | Run | Change | Iters |
+| --- | --- | --- | --- |
+| 22 | `fixed-goal` | `--goal-drift False --goal-resample-on-success False` | 1499 / 1500 |
+| 23 | `orientation-fine` | `--orientation-fine True` | 650 / 1500 — host reboot |
+| 24 | `reference-seed7` | `seed` 42 → 7 | 1499 / 1500 |
+
+### The training logs could not answer the question
+
+| run | reward | `orientation_error` | `consecutive_success` |
+| --- | --- | --- | --- |
+| 14 `reference-v3-eulerdamp` (2999 it) | 187 | 0.76 | 0.033 |
+| 22 `fixed-goal` (1499 it) | 97 | 1.61 | 0.625 |
+| 23 `orientation-fine` (650 it) | 145 | 1.46 | 0.010 |
+| 24 `reference-seed7` (1499 it) | 182 | 0.85 | 0.032 |
+
+Run 22's `consecutive_success` of 0.625 is **not** a 19× improvement over run 14, and the
+reward column is not comparable either. With the goal pinned, nothing resamples on success,
+so the counter stops counting *goals hit* and starts counting *steps spent inside the
+threshold* — a different quantity with the same name. Run 23's reward is lower partly because
+it has an extra reward term, and its budget is 650 iterations against run 14's 2999.
+
+Every number in that table is a different unit. That is what `eval_policy.py` exists for.
+
+### Deterministic scoring, and the flag that had to be added first
+
+`eval_policy.py` reconstructs the env a checkpoint trained in and rolls out the **mean**
+action. Before it could score these runs it needed `--cube-priority`, for the same reason it
+already needed `--cube-condim`:
+
+`get_cube_spec` now defaults to `priority=1` (run 25, added 2026-09-02 21:26). Runs 14, 22 and
+24 have **no `cube_priority` key** in their `params/env.yaml` `build_kwargs` — they predate the
+flag and trained under MuJoCo's element-wise-max mixing, where the fingertips' 0.5–1.0 beat the
+cube's 0.3. Scoring them at today's default would hand them a *weaker grip than they ever
+trained with* and flatter run 23 for free. They are scored at `--cube-priority 0`; run 23 at 1.
+
+Rule going forward: **if `build_kwargs` has no `cube_priority` key, pass `--cube-priority 0`.**
+
+64 envs × 700 steps, seed 42. `best` is the median per-episode minimum error reached; the goal
+runs away after a success, so `best` and `final` are genuinely different quantities.
+
+**Native — each checkpoint in its own training env:**
+
+| eval | start° | best° | final° | succ% | total ↓ | spin ↓ | tip ↓ |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 14 @2999 | 134.1 | **31.3** | 38.0 | 0.0 | 74.3% | 88.6% | 70.1% |
+| 24 seed7 @1499 | 134.1 | 37.4 | 41.3 | 0.0 | 67.3% | 85.6% | 59.1% |
+| 22 fixed-goal @1499 | 132.6 | 77.1 | 78.8 | 0.0 | 31.6% | 67.2% | 12.0% |
+| 23 orient-fine @600 | 134.1 | 77.3 | 86.1 | 0.0 | 37.8% | 71.7% | 23.4% |
+
+**Pinned goal — drift off for everyone, native physics.** This is the comparison that matters:
+the drift kick is the thing that made `consecutive_success` mean two different things, so
+removing it for all four makes "how much error does it close" one quantity.
+
+| eval | start° | best° | final° | succ% | total ↓ | spin ↓ | tip ↓ |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 14 @2999 | 132.3 | **32.9** | 37.7 | 1.6 | 72.7% | 87.9% | 62.0% |
+| 24 seed7 @1499 | 132.3 | 34.2 | 36.0 | 1.6 | 70.6% | 84.8% | 58.4% |
+| 22 fixed-goal @1499 | 132.6 | 77.1 | 78.8 | 0.0 | 31.6% | 67.2% | 12.0% |
+| 23 orient-fine @600 | 132.3 | 64.2 | 75.8 | 0.0 | 38.4% | 70.3% | 24.3% |
+
+**Equal budget — everything at iteration 600, pinned.** Run 23 only ever reached 650, so the
+rows above partly measure training budget rather than the reward change:
+
+| eval | start° | best° | final° | succ% | total ↓ | spin ↓ | tip ↓ |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 14 @600 | 132.6 | **37.3** | 41.4 | 1.5 | 69.9% | 85.7% | 51.9% |
+| 24 seed7 @600 | 132.3 | 38.5 | 41.1 | 3.1 | 70.0% | 84.7% | 52.4% |
+| 23 orient-fine @600 | 132.3 | 64.2 | 75.8 | 0.0 | 38.4% | 70.3% | 24.3% |
+
+### What this says
+
+**Run 22 is much worse, not better.** 77° against run 14's 33° under the identical
+measurement. The 0.625 was an artifact of the renamed counter, exactly as suspected. Pinning
+the goal does not free the policy to be precise — it removes a curriculum. With drift on, a
+success moves the goal *somewhere nearby*, which is a reachable next target; with the goal
+pinned the policy gets one hard random target per episode and never sees the near-goal regime
+at all. Its tip-over reduction collapses to 12%, the worst number in the table.
+
+**Run 23 is worse too, and it is not a budget artifact.** At matched iteration 600 it closes
+64° against run 14's 37°. The long-tail term is supposed to be the only reward gradient below
+0.2 rad, but the policy never gets below 0.2 rad, so in practice it is a reweighting of the
+region the policy actually occupies — and it reweights it badly.
+
+**Run 24 reproduces run 14.** 34.2° vs 32.9° pinned, 37.4° vs 37.3° at matched iteration 600.
+The run-14 result is not a seed fluke, and seed noise on this metric is ~1–2°, which sets the
+resolution of every comparison here: **a config that moves `best` by less than ~3° has not
+been shown to do anything.**
+
+**Success is nonzero for the first time, barely.** 1.5–3.1% of episodes touch 5.7° once the
+goal is pinned at evaluation time, against a flat 0.0% native. That is 1–2 episodes out of 64,
+so it is a hint and not a result — but it is consistent with the drift kick being what erases
+successes rather than the policy being unable to reach them.
+
+### The `cube_priority` confound, measured rather than assumed
+
+Run 23 differs from run 14 in *two* ways — the reward term and `cube_priority` 0 → 1 — so its
+deficit was not attributable on the tables above. Scoring both policies at both priorities
+separates them (all @600, pinned):
+
+| policy | priority 0 | priority 1 |
+| --- | --- | --- |
+| run 14 baseline | **37.3°** (trained here) | 35.7° |
+| run 23 orientation-fine | 61.3° | **64.2°** (trained here) |
+
+`cube_priority` moves best-error by 2–3° in either direction — inside seed noise. Policy
+identity moves it by ~26°. Run 23's deficit is the reward change, not the contact change.
+
+The useful side-result: **run 14's policy is indifferent to the priority switch** (37.3 → 35.7,
+if anything slightly better). Turning on priority 1 — which is what makes
+`--cube-friction-sliding` reach the grasp at all — does not damage the existing policy. The
+friction sweep is not starting from a broken baseline.
+
+### What it means for the reward-bottleneck hypothesis
+
+The standing hypothesis was that the ~30° stall is the reward's optimum, and no contact model
+will move it. Run 22 was the direct test of that — and it lost, badly. Run 23, the other reward
+intervention, also lost. Two independent edits to the reward both made the policy worse than
+leaving it alone.
+
+That does not prove the reward is fine. It does mean the two specific edits available were
+both wrong, and that "fix the reward" is not a cheap next step with a known direction. The
+contact/geometry sweep is no longer the thing to argue against.
+
+### Housekeeping found while scoring these
+
+- Run 23's `model_650.pt` is **0 bytes** — the 2026-09-02 22:11 reboot landed mid-write.
+  `supervise_run.sh` picked the newest checkpoint by iteration number without checking it was
+  readable, so every relaunch resumed from the truncated file and died in `runner.load` before
+  iteration one: **65 dead segments between 2026-09-03 08:30 and 2026-09-05 23:24**, across 13
+  reboots (the 5-failure guard fires, the `@reboot` hook restarts it, repeat). The box trained
+  nothing for three days. `latest_ckpt` now skips zero-length files, and a segment that dies
+  inside `runner.load` without advancing quarantines its checkpoint as `.corrupt` and falls
+  back one save interval instead of burning the whole retry budget.
+- `eval_policy.py`'s JSON `config` block and its printed header were both hand-maintained lists
+  that had already silently dropped the goal-drift flags. A result measured with the goal
+  pinned was indistinguishable from one measured with it drifting. Both are now derived from
+  `EvalConfig` itself.
+
+---
+
+## 25. Contact priority — the cube's friction was never reaching the grasp (2026-09-05)
+
+Hamid, by email: *"Cube has the highest priority. Use the policy u trained. Only change
+sliding friction to see if the sliding goes away. Make sliding friction a hyperparameter.
+Make palm angle a hyperparameter."* He is talking about MuJoCo's contact-parameter
+priority — the solver snaps a contact's parameters to one geom or the other, and he
+wanted that to be the cube.
+
+He was right, and the consequence is larger than a tuning detail: **runs 5–7's "friction
+ablation" was the second thing on this project to vary nothing, and `dr_cube_friction` has
+been inert since day one.**
+
+### The mechanism
+
+MuJoCo mixes a *dynamically generated* contact's friction as the **element-wise max** of
+the two geoms' — unless one geom has a higher `priority`, in which case that geom dictates
+condim, friction, solref and solimp outright. Measured on the compiled reference model,
+every geom had `priority = 0`:
+
+| geoms | count | friction[0] | solref[0] |
+| --- | --- | --- | --- |
+| hand pads (`palm_collision_*`, `*_uspa4*`, `*_collision_*`) | 32 | 0.200 | 0.0001 |
+| fingertips (`th/if/mf/rf_tip`) | 4 | 0.500 | 0.02 |
+| cube (`cube/cube`) | 1 | 0.300 | 0.02 |
+| terrain | 1 | 1.000 | 0.02 |
+
+So a cube-fingertip contact resolved to `max(0.3, 0.5) = 0.5` and a cube-pad contact to
+`max(0.3, 0.2) = 0.3`. **The cube's sliding friction was discarded at the four geoms that
+do the grasping**, and anything set below 0.5 there was a no-op. Worse, the two DR events
+were sampling into each other's shadow: `dr_cube_friction` draws 0.1–0.5 while
+`dr_fingertip_friction` draws 0.5–1.0, so the fingertip range won the max on essentially
+every draw and the cube's randomization did nothing at all.
+
+### Correction (2026-09-06) — the grasp was never stuck *low*
+
+Everything above is about which geom's number reaches the contact, and it is right. The
+inference quietly drawn from it — that the grasp was therefore running at some low, wrong
+friction that priority 1 would raise — is **wrong**, and it made the friction axis look far
+more promising than it is. Found while designing run 26.
+
+**Unchanged:** `dr_cube_friction` was inert, the runs 5–7 ablation varied nothing, and the
+cube's own sliding friction never reached a fingertip contact.
+
+**Corrected:** the term that *did* control the grasp is `dr_fingertip_friction` — range
+(0.5, 1.0), `axes=(0,)`, `mode="reset"`, geoms `th_tip`/`if_tip`/`mf_tip`/`rf_tip`. It
+resamples every reset, and at priority 0 the contact takes `max(cube, tip)` where the tip
+draw is always ≥ 0.5 ≥ the cube draw. So run 14's **grasp friction was U(0.5, 1.0), mean
+≈ 0.75** — randomized and high, dictated by the fingertip term rather than the cube one.
+
+That reverses the sign of the opportunity. Going to `priority 1` at μ=0.8:
+
+| contact | run 14 (effective) | at μ=0.8 | change |
+| --- | --- | --- | --- |
+| cube–fingertip | U(0.5, 1.0), mean 0.75 | 0.80 pinned | +7% on the mean, and the randomization is **removed** |
+| cube–pad | U(0.2, 0.5), mean ≈ 0.35 | 0.80 pinned | more than double |
+
+So the intervention is nearly a no-op at the fingertips and large at the palm pads — the
+opposite of where it was expected to matter. It also silently converts a randomized
+parameter into a fixed one, which is a robustness change, not only a friction change.
+
+**The probe table below overstates the available headroom, and here is why.** Its
+`priority = 0` rows read `@tip 0.50` for every request because the probe holds fingertip
+friction at its nominal 0.5 with DR off — that is the **bottom** of run 14's training
+distribution, not its mean. And the headline "83.8 → 26.4 mm/s, 3.2×" spans μ 0.05 → 1.2, a
+range run 14 never occupied. Measured against run 14's actual distribution the honest delta
+is **34–39 → 28.7 mm/s**, roughly 25%, with maybe another 10% left before wedging starts.
+Read the sweep below as a characterisation of the contact model, not as headroom.
+
+### Measured, not argued
+
+`scripts/friction_probe.py` replays run 14's policy (`reference-v3-eulerdamp/model_2999.pt`,
+unchanged, not retrained) across a sweep of `cube_friction_sliding`, mirroring the sim state
+into a host `MjData` each control step and reading the contacts directly. `@tip` / `@pad` are
+the median resolved contact friction; `slip` is the true tangential relative speed at the
+contact, `||(I - nn^T)(v_cube - v_hand)||`, from body Jacobians.
+
+**`cube_priority = 0` (every run 1–21):**
+
+| requested | @tip | @pad | slip_mean | slip_tip |
+| --- | --- | --- | --- | --- |
+| 0.05 | **0.50** | 0.20 | 35.7 mm/s | 39.2 mm/s |
+| 0.10 | **0.50** | 0.20 | 35.7 | 39.4 |
+| 0.20 | **0.50** | 0.20 | 36.5 | 38.9 |
+| 0.30 | **0.50** | 0.30 | 25.8 | 34.3 |
+| 0.50 | **0.50** | 0.50 | 17.1 | 36.1 |
+
+Five different requested values, one fingertip friction. The fingertip slip is flat at
+34–39 mm/s across all of them.
+
+**`cube_priority = 1` (new default):**
+
+| requested | @tip | @pad | slip_mean | slip_tip | pen_p95 |
+| --- | --- | --- | --- | --- | --- |
+| 0.05 | 0.05 | 0.05 | 68.2 mm/s | 83.8 mm/s | 0.87 mm |
+| 0.10 | 0.10 | 0.10 | 63.8 | 75.2 | 0.87 |
+| 0.20 | 0.20 | 0.20 | 51.9 | 64.5 | 0.94 |
+| 0.30 | 0.30 | 0.30 | 36.9 | 52.9 | 0.89 |
+| 0.50 | 0.50 | 0.50 | 18.5 | 38.8 | 0.67 |
+| 0.80 | 0.80 | 0.80 | 15.6 | 29.0 | 0.74 |
+| 1.20 | 1.20 | 1.20 | 13.4 | 26.4 | 1.80 |
+| 2.00 | 2.00 | 2.00 | 11.6 | 27.7 | 3.70 |
+
+The contact now tracks the request exactly, and **the sliding does go away**: fingertip slip
+falls 83.8 → 26.4 mm/s, a 3.2× reduction, monotone to about μ=1.2. Raw data in
+`eval/friction/sweep_priority{0,1}.json`.
+
+Answering Hamid's question directly: yes, raising sliding friction removes most of the slip
+— but it saturates around μ ≈ 1.0–1.2, and past that `pen_p95` climbs (0.7 → 3.9 mm) and
+`pads_per_step` rises, i.e. the cube stops sliding and starts **wedging into the pads**
+instead. μ ≈ 0.6–1.0 is the usable band. Note this is a *replay* result: the policy never
+trained against these contacts, so it is a measurement of the contact model, not a
+prediction of what retraining will score.
+
+### Slope test — the friction is now the friction
+
+`scripts/slope_test.py` tilts a ramp from flat and records the angle each cube breaks away
+at. A rigid block slides iff `tan(theta) > mu`, so the release angle *is* a readout of the
+friction the solver applies. The ramp is deliberately given friction 1.0 (the terrain's
+value), so it doubles as a priority test. Release detection is on ramp-frame **speed**, not
+displacement: a stuck cube creeps sub-mm/s and that creep integrates, so a displacement
+threshold trips earlier the slower you tilt (μ=0.6 read 27.2° at 4°/s and 21.9° at 2°/s
+against a true 31.0°).
+
+| μ | atan(μ) | released, priority 1 | released, priority 0 |
+| --- | --- | --- | --- |
+| 0.05 | 2.9° | 4.1° | 45.5° |
+| 0.10 | 5.7° | 6.8° | 45.5° |
+| 0.20 | 11.3° | 12.1° | 45.5° |
+| 0.30 | 16.7° | 17.2° | 45.5° |
+| 0.50 | 26.6° | 27.3° | 45.5° |
+| 0.80 | 38.7° | 39.5° | 45.5° |
+| 1.20 | 50.2° | 45.3°* | 45.3°* |
+
+At priority 1 every value lands within +0.5–1.2° of `atan(μ)`. At priority 0 **every cube
+sticks to 45.5°** — the ramp's 1.0 masks all of them. (*A cube topples rather than slides
+once `tan(theta) > 1`, so 45° is a hard ceiling and μ ≥ 1.0 cannot be read this way. That
+also makes μ ≈ 1.0 the largest sliding friction with any physical meaning for this shape.)
+
+Videos: `eval/videos/slope_tilt_priority{0,1}.mp4`.
+
+### What changed in the code
+
+- `robots/cube.py` — cube geom gains `priority` (default **1**), plus explicit `solref` /
+  `solimp`. The solver params are pinned to MuJoCo's defaults, which is what the cube already
+  resolved to, so cube-fingertip contacts are unchanged except for friction. Cube-pad
+  contacts do change: at equal priority solref was a solmix average of 0.0001 and 0.02
+  (= 0.01005) and is now the cube's 0.02, about 2× softer. That is the one side effect.
+- `robots/leap_xela.py` — `palm_euler` applies the hand-base angle at spec-load time, so it
+  is a normal kwarg instead of a regenerated MJCF. Verified bit-identical to the baked
+  quats for both 1.88 and 1.92, which means `Box_palm192` is now just
+  `Box` + `palm_euler=(0, 1.92, -1.57)`.
+- `tasks/*/config/env_cfg.py` — `cube_priority` and `palm_euler` threaded through both
+  factories and into `build_kwargs`.
+- `scripts/train.py` — `--cube-priority`, `--palm-euler`; both logged to WandB. The
+  `fingertip_friction` docstring was inverted by this change and has been corrected: at
+  priority ≥ 1 that flag no longer touches cube-fingertip contacts at all.
+- `scripts/render.py` — `--view visual|collision|both`, `--show-contacts`, `--transparent`,
+  and `--cube-priority` / `--cube-friction-sliding` / `--palm-euler` overrides. Palm angle
+  was the one of the four asks still missing here (2026-09-06): the renderer could vary the
+  contact model but not the hand pose, so a replay could not be given the palm angle
+  explicitly. With it added, all four are reachable from `train.py`, `eval_policy.py`,
+  `friction_probe.py` and `render.py` alike. The reference value is
+  `--palm-euler 0 1.92 -1.57`: 1.92 is the only palm angle with evidence behind it (1.88
+  plateaus, 1.92 takes off) and is what runs 12–26 trained at, so passing it explicitly is a
+  no-op that puts the angle in the log instead of hiding it inside a `finger_tip_type` string.
+- `scripts/friction_probe.py`, `scripts/slope_test.py` — new.
+- `hyperparameter_search/` — `cube_priority` and `palm_pitch` are grid axes; the config is
+  re-scoped to an 8-run, ~13 h ranking grid (4 frictions × 2 palm angles), replacing a grid
+  that would have swept a parameter the solver ignores.
+
+### Reproducibility warning
+
+**`cube_priority` defaults to 1, which changes the physics of every existing task.** Runs
+1–21 were all trained at the equivalent of 0. Replaying an old checkpoint through the stock
+config now gives it a *more slippery* grasp than it ever trained against (fingertip friction
+0.5 → 0.3). Pass `--cube-priority 0` to `render.py` / `friction_probe.py`, or
+`cube_priority: 0` in a sweep config, for a faithful replay.
+
+### Collision-model replay
+
+`--view collision` hides group 2 (the decorative meshes, `contype=0`) and draws group 3, the
+geometry the solver actually uses, with `--show-contacts` overlaying contact points and
+force arrows. This is the view Hamid asked for, to check whether the cube wedges into the
+gaps between the discrete sensor pads.
+
+- `eval/videos/policy_collision_astrained.mp4` — run 14's policy at priority 0, i.e. the
+  physics it trained in. 600 steps, 0 drops.
+- `eval/videos/policy_visual_astrained.mp4` — same rollout, normal rendering.
+- `eval/videos/policy_collision_priority1_fric{0.3,1.2}.mp4` — the same policy under the new
+  contact model at low and high sliding friction.
+- `eval/videos/best_policy_collision_prio1_fric0.8_palm192.mp4`,
+  `best_policy_visual_prio1_fric0.8_palm192.mp4` (2026-09-06) — run 14's `model_2999` at the
+  settled parameters: `--cube-priority 1 --cube-friction-sliding 0.8 --palm-euler 0 1.92
+  -1.57`, collision and visual views of the same seed-42 rollout.
+- `eval/videos/best_policy_collision_closeup.mp4` — the same, 1280×960 at camera distance
+  0.22, close enough to see individual pad boxes.
+
+What the numbers say about wedging: `pads_per_step` sits at 3.4–4.9 distinct hand geoms in
+contact and `pen_p95` at 0.7–0.9 mm through the usable friction band, rising to 3.7 mm only
+at μ=2.0. So at sane friction the cube rides on the pads rather than sinking between them;
+the wedging regime is something high friction *creates*, not something it fixes.
+
+**There are no gaps to wedge into.** Measured on the compiled `Box_palm192` hand: 36
+collision geoms, 4 fingertips and 32 pads, pad half-extents ~15 × 11 × 14 mm at a median
+nearest-neighbour centre spacing of **16.0 mm**. Boxes that size at that spacing overlap —
+the implied surface gap is about **−6 mm**. The collision shell is continuous, not a row of
+separated islands, so the premise of the question does not hold for this model. Against
+that, `pen_p95` at μ=0.8 is 0.68 mm, **1.9% of the cube's 35 mm half-width**: ordinary
+soft-contact compliance. The gap figure is approximate — it takes each pad's smallest
+half-extent and ignores per-box orientation — but a 6 mm overlap is far too large for
+orientation to flip the sign.
+
+### Still open (updated 2026-09-06, revised after runs 29–30 and the parity audit)
+
+- **The contact and actuation model is closed. Five nulls.** `condim 6` (run 19), friction
+  (run 26), action saturation (runs 27–28), cube size (runs 29–30), and the rolling-resistance
+  probe. Each was tested single-variable, several had their mechanism demonstrably fire
+  (`|a|` fell 6×, slip fell 3.2×, clearance was restored), and none moved best error outside
+  the ~3° floor or produced a single success. **Stop looking for the answer in the physics.**
+- **Cube size: tested, and null across a 14% span.** Runs 29–30 at half-size 0.0325 and
+  0.0300 give best error 27.1° and 24.8° against run 14's 26.3°, all 0/32. The clearance
+  measurement that motivated them is still correct and still worth having (the pads cost
+  ~5.7 mm of cavity, 7.9 mm on the tip axis) — it just does not explain the stall.
+- **Palm angle: CLOSED, not open.** The MuJoCo Playground paper says the bracket "tilts the
+  palm downward by 20°"; `1.92 rad = 110.0° = 90° + 20°` and `1.88 rad = 107.7°`. 1.92 is the
+  hardware-correct value and 1.88 was simply wrong. There is nothing to sweep, and the
+  previous revision of this list was wrong to call it "the only cheap structural axis left".
+- **The port is faithful — do not go looking for a config bug.** The 2026-09-06 audit checked
+  obs (57/91, `history_len=1` both sides), all seven reward scales, the orientation kernel,
+  actuators, cube geom and goal machinery against playground's GitHub source. The only real
+  deviation left is the 20×-weak success bonus, which run 20 tested and made worse. Velocity
+  blindness and contact-buffer overflow both died in that audit.
+- **The leading account is now an equilibrium in the reward, not a limit in the hand.**
+  Four interventions each raised tip closure and lowered spin closure by comparable amounts
+  while total stayed at 77.6–81.4%. A capability limit does not rebalance. The orientation
+  reward is *linear* from 180° to 11.5° and flat below, so the marginal reward for one more
+  degree is the same at 130° and 30° while the marginal cost rises steeply near the goal —
+  the policy stops where those meet, and that point belongs to the reward. It also explains
+  why the bare hand succeeds on the identical reward: a lower cost of precision puts the same
+  equilibrium inside 0.1 rad, where the success bonus fires and bootstraps.
+- **In flight: can the policy PERCEIVE the threshold it is scored on?** `obsnoise-0` and
+  `obsnoise-half` (`--obs-noise-scale 0.0 / 0.5`, `--cube-priority 0`), queued 2026-09-06
+  15:03. `cube_ori` observation noise is ±0.1 on rotation-matrix entries — per component
+  std 0.058, tilting a unit column by ~0.082 rad ≈ **4.7°** — against a success threshold of
+  0.1 rad = **5.7°**. The measurement noise is the same order as the target, so the gradient
+  needed to servo inside the threshold is buried in the policy's own observation noise. The
+  corroborating detail: **eval already runs with corruption off** (`play=True` sets
+  `enable_corruption=False`) and the policy still stops at 26–27° with clean observations,
+  which is the signature of a policy trained blind rather than one blinded at test time.
+  `obs_noise_scale` is playground's own `obs_noise.level` (its `default_config` has
+  `level=1.0` over the three scales), which this port hard-coded rather than exposed — so
+  1.0 is exact parity and this only turns a knob the reference already has.
+- **Pre-registered follow-up if noise is null: the reward SHAPE.** Switch the orientation
+  term's sigmoid from `"linear"` to the convex `_long_tail_tolerance` already sitting unused
+  at `rewards.py:49`, so marginal reward *increases* as the goal is approached. This attacks
+  the equilibrium directly, unlike run 23's `orientation_fine`, which bolted a second term
+  beside the linear one and left it setting the equilibrium.
+- **The finger-pad rolling claim is still untested.** The probe answered the palm (null) but
+  cannot reach the curved phalanges. Needs a rig that keeps the curvature and varies only the
+  surface — the real finger against the same finger with its pads replaced by a capsule.
+- **A second seed at `--action-l2 1e-4` is still the cheapest open question.** That cell moved
+  best error 26.3 → 22.4°, just past the ~3° floor, while its 1e-3 sibling moved 3.5° the
+  other way. One seed cannot tell those apart. Runs 29–30 produced the same non-monotone
+  ±2° straddle, which reinforces the point.
+- **Any sweep needs a resolution floor.** Run 24 puts run-to-run spread at ~1–2° of
+  deterministic best error, so **a cell that moves best-error by less than ~3° has shown
+  nothing at n=1.**
+- **Drop training-time `consecutive_success` as a leading indicator.** It misled twice in
+  runs 29–30: 0.030 early on `cube-0325`, and 0.042 on `cube-0300` — above run 14's 0.0395 at
+  iteration 2999 — both converting to 0/32. It counts stochastic threshold crossings under
+  exploration noise, which accumulate without the policy ever arriving deliberately.
+- **There is no action-magnitude readout in `scripts/eval_policy.py`.** The `|a|` numbers in
+  runs 27–28 are derived from `Episode_Reward/action_l2`, not measured deterministically.
+
+---
+
+## 26. `friction08-prio1` — the friction payoff test, answered: no
+
+Run 14 + `--cube-priority 1 --cube-friction-sliding 0.8`, seed 42, 8192 envs, 1499/1500
+iterations, 103 min, started 2026-09-06 00:01. The run Hamid's question actually needed:
+everything before it was replay evidence, and he asked what *happens*, which needs training.
+
+Two things move against run 14, not one, and they cannot be separated in a single run —
+`priority 1` is the precondition for the friction number to reach the contact at all.
+`--cube-friction-sliding` also disables `dr_cube_friction`, so μ is pinned rather than
+resampled.
+
+Deterministic eval, 32 envs, seed 7, each checkpoint scored in its **own** training env:
+
+| | start | best | final | succ | drops | total ↓ | spin ↓ | tip ↓ |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 14 @1500, priority 0 | 134.7° | **26.3°** | 29.7° | 0.0% | 0.03 | 80.1% | **93.5%** | 66.9% |
+| 26 @1499, priority 1 μ=0.8 | 139.2° | **25.1°** | 36.1° | 0.0% | 0.06 | 81.4% | 76.7% | **73.1%** |
+
+**The headline is null.** 26.3 → 25.1° is 1.2°, inside the ~1–2° seed spread run 24
+established, so it is not a result. Zero successes either side, as in every reorient run.
+
+**The finding is that the error moved rather than shrank.** Tip-over closure improved
+66.9 → 73.1% while spin closure fell 93.5 → 76.7%. Run 14 vs run 24 at matched iteration 600
+differ by ~1 point on spin and ~0.5 on tip, so a −16.8 / +6.2 swing is well outside noise.
+The policy got better at the half it had been failing and worse at the half it had already
+solved, and the two cancelled. `final` also degrades 29.7 → 36.1°, i.e. it holds the pose
+less well after reaching it.
+
+**Why that is the expected shape, given the correction in run 25.** The intervention is weak
+where it was expected to matter and strong where it was not. At the fingertips run 14 already
+sampled μ ∈ (0.5, 1.0) every reset via `dr_fingertip_friction`, so pinning 0.8 moves the mean
+about 7%; the palm pads go from ≈ 0.35 to 0.8, more than double. Tipping the cube means
+rolling it against the palm, so a large pad-friction increase improving tip-over while
+leaving spin — a fingertip skill — unhelped or worse is exactly what that asymmetry predicts.
+The spin regression is consistent with the other half of the change: the grasp friction
+stopped being randomized, and a policy trained on one fixed value has less to hold onto.
+
+Caveats. The two rows are scored in different physics, each in the env it trained in, so this
+compares *configurations*, not one policy under one contact model. n = 32 episodes, and the
+drops difference (0.03 vs 0.06) is one or two events either way — do not read it.
+
+Answering the email end to end: the cube now has priority and dictates the contact (verified,
+`@tip` and `@pad` both resolve to 0.80); raising sliding friction does remove most of the
+slip (34–39 → 28.7 mm/s at the fingertips); sliding friction and palm angle are both
+hyperparameters; and the cube is not wedging into the pad gaps because the pads overlap and
+there are no gaps. What it does not do is move reorient. **This is the second contact-model
+fix to fail on this task**, after `condim 6` in run 19 — and run 19 is the precedent that
+predicted it.
+
+---
+
+## 27–28. `action-l2-1e3` / `action-l2-1e4` — the saturation fix, answered: the clip was real, the stall is not the clip
+
+Two cells bracketing one weight, both run 14 + `--action-l2 <w>` at seed 42, 8192 envs,
+1499/1500 iterations, ~100 min each, started 2026-09-06 02:47 and 04:27. `--cube-priority 0`
+restores run 14's contact model, so `--action-l2` is the **only** difference from run 14 and
+the comparison is genuinely single-variable — unlike run 26, where two things moved at once.
+
+The term is new: `mdp.rewards.action_l2` (`rewards.py:193`) returns
+`torch.sum(torch.square(env.action_manager.action), dim=1)`, the raw pre-scale policy output,
+the same space `action_rate_l2` lives in. The motivation is that **only the action *rate* was
+ever penalized, and the action term clips to the actuator ctrl range**, so above the clip the
+reward gradient with respect to the action is exactly zero and nothing pulls its magnitude
+back. The optimum of a rate-only penalty is therefore a large *constant* action, and that is
+what the reference line learned — measured on run 14's `model_2999`, deterministic, between
+the approach phase and the stall:
+
+| phase | mean \|a\| | step-to-step \|da\| |
+| --- | --- | --- |
+| steps 0–80 (approach) | 8.3 | 2.16 |
+| steps 150–400 (stall) | **13.4** | 0.93 |
+
+Magnitude grows while change collapses. At `scale=0.5` a mean \|a\| of 13.4 is a commanded
+joint delta of 6.7 rad against a median ctrl range of 2.27 rad — 3× the entire range, p95 15×.
+That made "the policy is a saturated bang-bang controller with no fine authority" the
+standing explanation for the ~30° steady-state shell it converges to from any starting offset.
+
+Deterministic eval, 32 envs × 700 steps, seed 7, `cube_priority=0` — all three rows scored in
+the same physics:
+
+| | start | best | final | succ | held | drops | total ↓ | spin ↓ | tip ↓ | best @ step |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 14 @1500 (baseline) | 134.7° | **26.3°** | 29.7° | 0.0% | — | 0.03 | 80.1% | **93.5%** | 66.9% | 104 |
+| 27 @1499, `l2 = 1e-3` | 127.3° | **29.8°** | 34.8° | 0.0% | 0.0% | 0.03 | 77.0% | 89.5% | 63.6% | 249 |
+| 28 @1499, `l2 = 1e-4` | 134.7° | **22.4°** | 29.9° | 0.0% | 0.0% | 0.03 | 80.2% | 91.0% | **69.3%** | 122 |
+
+**The mechanism fired and the shell did not move.** Backing action magnitude out of the
+training logs gives a per-dim \|a\| of ~5.2 at `1e-4` and ~2.2 at `1e-3`, against run 14's
+13.4 — a 2.6× and 6× collapse. The penalty did exactly what it was designed to do. Best error
+still sits at 22–30°, and successes are still **0/32 on all three criteria** — instantaneous,
+held, and settled. Saturation was real, and it is not what is holding this task at 30°.
+
+**This is the pre-registered negative branch, and the queue comment called it in advance:**
+"If `|a|` falls but the shell does not move, saturation was real but not the binding
+constraint, and the palm-angle axis is next" (`run_queue.sh:61–63`). The other half of that
+prediction — held-success rising above 0 — did not happen either. **This is now the third
+actuation- or contact-model fix to fail on reorient**, after `condim 6` (run 19) and friction
+(run 26). Three different physical explanations for the stall have each been tested
+single-variable and each returned null.
+
+**Between the two cells, `1e-3` over-penalizes.** It is worse than baseline on every axis —
+total 80.1 → 77.0%, spin 93.5 → 89.5%, tip 66.9 → 63.6% — and it takes 249 steps to reach
+best against the baseline's 104. Clamping the action that hard costs authority: the policy
+gets a calmer hand and a slower, weaker one. Its `action_rate` penalty also falls (−0.487 →
+−0.358), i.e. the magnitude penalty quiets the rate term for free, which is consistent with
+a smaller action rather than a better-controlled one.
+
+**`1e-4` is the usable weight.** It matches baseline on spin (93.5 → 91.0%), gains on
+tip-over (66.9 → **69.3%** — the half that has always been the failure), and holds the pose
+better afterward (final 29.9° vs `1e-3`'s 34.8°, and drift-after-best p90 8.4° vs run 14's
+19.0°). If the action penalty is kept in the reward at all, this is the weight to keep.
+
+**On whether `1e-4`'s 22.4° is a real improvement: do not call it one.** 26.3 → 22.4° is
+3.9°, which just clears the ~3° resolution floor run 24 established, and it is the first
+movement in several runs that is even arguably above noise. But it is n=1 at one seed, and
+the `1e-3` cell moved 3.5° *the other way* from the same intervention. A pair of cells
+straddling the baseline by ±4° in opposite directions is what a noise band looks like, not
+what a trend looks like. A second seed at `1e-4` is the cheapest thing that would settle it.
+
+Caveats — **the \|a\| figures above are derived, not measured.** There is no
+action-magnitude readout in `scripts/eval_policy.py`, so a direct deterministic measurement
+of these two checkpoints is still unwritten. What is available is `Episode_Reward/action_l2`,
+divided back out. mjlab's `RewardManager.reset()` logs `episodic_sum_avg /
+max_episode_length_s` (`.venv/.../mjlab/managers/reward_manager.py:108`), and the per-step
+reward is `w · ‖a‖² · dt`, so with `max_episode_length_s = 50` and `ctrl_dt = 0.05`:
+
+    mean_t ‖a‖²  =  Episode_Reward · 50 / (w · 0.05 · T)          T = mean episode length in steps
+
+then subtracting the exploration-noise floor `16 · std²`, since these are *sampled* training
+actions and not the mean:
+
+| run | `Episode_Reward/action_l2` | T | std | mean ‖a‖² | noise floor | per-dim \|a\| |
+| --- | --- | --- | --- | --- | --- | --- |
+| 27 `l2 = 1e-3` | −0.1418 | 975 | 2.014 | 145.5 | 64.9 | **2.24** |
+| 28 `l2 = 1e-4` | −0.0524 | 981 | 2.587 | 534.6 | 107.1 | **5.17** |
+
+Two things this is not. These are episode-averaged over the whole rollout, while run 14's
+13.4 was isolated to the stall phase (steps 150–400) where magnitude is highest — so the
+comparison is biased *against* the new runs, and the true collapse is if anything larger than
+2.6×/6×. And they are RMS per dimension where run 14's 13.4 is a mean absolute value, which
+biases the other way. The direction and rough scale are solid; the exact ratios are not.
+Nothing in the conclusion turns on the difference — a 2× error either way still leaves the
+clip broken and the shell intact.
+
+---
+
+## 29–30. `cube-0325` / `cube-0300` — the cavity test, answered: no
+
+Two cells shrinking the cube, both run 14 + `--cube-half-size <h>` at seed 42, 8192 envs,
+1500/1500 iterations, ~100 min each, started 2026-09-06 11:37 and 13:21. `--cube-priority 0`
+restores run 14's contact model, so **size is the only difference from run 14** and each
+comparison is single-variable.
+
+The motivation is measured, not guessed, and it is in the next section: the XELA taxel pads
+sit proud of the structural collision surface by a median 2.84 mm, so a grasp loses ~5.7 mm
+of cavity and a 70 mm cube in this hand has the clearance a 75.7 mm cube would have in the
+bare LEAP hand — **scale 1.081 before anyone changes anything**. Restoring the bare hand's
+absolute clearance means 70 − 5.7 ≈ 64 mm, or 70 − 7.9 ≈ 62 mm on the tip-over axis:
+half-size 0.031–0.032 against the reference 0.035. The two cells bracket that.
+
+It is also an axis nobody had ever explored in this direction. Hamid's cube-scale sweep was
+1.0 / 1.05 / 1.08 / 1.09 / 1.1 / 1.2 — **every cell at or above reference**, on a hand
+already effectively at 1.08 — and his note on dropping to 1.0 was "it seems the hand is
+struggling to rotate the cube". He never went below 1.0.
+
+Mass is **not** swept with size. `build_kwargs` carries `cube_mass: 0.108` and
+`_apply_env_overrides` rebuilds from `build_kwargs`, so overriding only `--cube-half-size`
+leaves mass pinned — which is Hamid's own convention (his XML holds mass constant across
+scales) and keeps these cells on the same axis as his 1.0–1.2 cells. The consequence is that
+the smaller cubes are **denser than physical**: at half-size 0.0300 a pinned 0.108 kg is
+~59% above the volume-scaled mass. Confirmed harmless here only because the result is null;
+if size ever does move this task, that confound has to be broken with a third cell at
+volume-scaled mass before "it was the size" can be claimed.
+
+Deterministic eval, 32 envs × 700 steps, seed 7 — each row scored in its own training env:
+
+| | start | best | final | succ | held | drops | total ↓ | spin ↓ | tip ↓ | best @ step |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 14 @1500, 70 mm | 134.7° | **26.3°** | 29.7° | 0.0% | — | 0.03 | 80.1% | **93.5%** | 66.9% | 104 |
+| 29 @1499, 65 mm (`0.0325`) | 134.7° | **27.1°** | 34.3° | 0.0% | 0.0% | 0.00 | 77.6% | 91.9% | 71.9% | 153 |
+| 30 @1499, 60 mm (`0.0300`) | 134.7° | **24.8°** | 33.3° | 0.0% | 0.0% | 0.00 | 77.8% | 88.0% | **73.3%** | 138 |
+
+**The headline is null, and it is null across a 14% span of cube size.** Best error moves
+26.3 → 27.1 → 24.8°, a total range of 2.3° against the ~1–2° seed spread run 24 established
+and well under the ~3° resolution floor. Successes are **0/32 on all three criteria** —
+instantaneous, held and settled — at every size. That is not a shallow gradient being climbed
+too slowly; a real effect over a 14% span of the supposed binding constraint would not hide
+inside seed noise. Note also that the two cells move in *opposite* directions from baseline
+(65 mm worse by 0.8°, 60 mm better by 1.5°), which is the same non-monotone signature runs
+27–28 produced and is what noise looks like rather than a trend.
+
+Drops fall 0.03 → 0.00 at both sizes. The grip is if anything better with a smaller cube, so
+nothing here is a grasp-stability problem.
+
+**Training-time `consecutive_success` misled, twice, and should be dropped as a leading
+indicator.** On `cube-0325` it reached ~0.030 by iteration 150 and sat flat there for 1350
+more iterations; on `cube-0300` it crept to **0.042**, *above* run 14's 0.0395 at iteration
+**2999** and reached in a third of the budget. Both converted to 0/32 in the deterministic
+eval. The metric counts stochastic threshold crossings under exploration noise, which a
+policy can accumulate without ever being able to arrive deliberately — run 14 already
+demonstrated the same disconnect. Read the deterministic best error instead.
+
+### The conservation law — the shape of the nulls is now the finding
+
+Four interventions have now been tested single-variable against run 14, and each one
+**improved tip-over closure while degrading spin closure by a comparable amount, leaving the
+total pinned**:
+
+| | spin ↓ | tip ↓ | total ↓ | best |
+| --- | --- | --- | --- | --- |
+| 14 @1500 (baseline) | **93.5%** | 66.9% | 80.1% | 26.3° |
+| 26 `friction08-prio1` | 76.7% | 73.1% | 81.4% | 25.1° |
+| 29 `cube-0325` | 91.9% | 71.9% | 77.6% | 27.1° |
+| 30 `cube-0300` | 88.0% | **73.3%** | 77.8% | 24.8° |
+
+(`condim 6` — run 19 — belongs in this list as the first of the four, but it predates the
+`eval_policy.py` decomposition and has no spin/tip numbers to quote. Its total was null on
+the same task while transforming `rotate_x`, which is the same pattern one level up.)
+
+Spin spans 76.7–93.5% and tip spans 66.9–73.3% across these rows, while **total stays inside
+77.6–81.4% and best error inside 24.8–27.1°**. Every intervention buys tip-over and pays for
+it in spin, at par.
+
+**A capability limit does not rebalance. An equilibrium does.** If the hand simply could not
+tip the cube, giving it more grip or more room would raise tip closure and leave spin alone;
+the total would move. Instead the policy re-allocates and the total does not move, which is
+what an optimum looks like when you change the relative cost of two ways of reaching it
+without changing what either is worth.
+
+There is a mechanism for exactly that, and it is in the reward.
+`mdp.rewards.cube_orientation_tolerance` is
+`tolerance(err, bounds=(0, 0.2), margin=π, sigmoid="linear")` — **linear** in orientation
+error from 180° down to 11.5°, and flat below. Linear means the marginal reward for closing
+one more degree is *identical at 130° and at 30°*, while the marginal cost of closing that
+degree rises steeply near the goal: finer manipulation, more action rate and energy, and more
+exposure to the −100 termination. The policy settles where marginal reward meets marginal
+cost, and **that point is a property of the reward, not of the hand**. Change the contact
+model or the cube and you change the relative cost of spin versus tip, so the policy
+re-allocates between them — but the total sits where the reward puts it. That is precisely
+the table above.
+
+It also explains the thing that has been most puzzling: the bare LEAP hand succeeds on this
+*identical* reward. A lower cost of precision moves the same equilibrium inward past 0.1 rad,
+where the 100-point success bonus starts firing and bootstraps itself. The padded hand pays
+more for every degree and its equilibrium lands outside the threshold, where the bonus never
+fires and the only gradient is the flat-below-0.2 linear term.
+
+This is a hypothesis, not a measurement. What makes it worth acting on is that it is the only
+account so far that predicts the *shape* of five nulls rather than explaining each one after
+the fact, and it makes a falsifiable prediction: interventions that change the cost of
+precision will keep returning null, and only interventions that change what precision is
+*worth* — the reward shape — or that change whether the policy can *perceive* the threshold
+will move it. Both are testable and neither has been tried.
+
+---
+
+## Parity audit against playground source (2026-09-06)
+
+Every previous parity claim in this file was checked against Hamid's Notion page or against
+our own notes. This one was checked against the **actual `google-deepmind/mujoco_playground`
+source on GitHub**, file by file. The result is that the port is faithful, and the search for
+a config-level bug is over.
+
+| | playground | ours | |
+| --- | --- | --- | --- |
+| actor obs | 57 dims | 57 dims | ✓ |
+| privileged obs | 91 dims | 91 dims | ✓ |
+| `history_len` | **1** | `history_length=1` | ✓ |
+| obs noise scales | 0.05 / 0.02 / 0.1 | 0.05 / 0.02 / 0.1 | ✓ |
+| reward scales | orientation 5.0, position 0.5, termination −100, hand_pose −0.5, action_rate −0.001, joint_vel 0.0, energy −1e-3 | identical | ✓ |
+| orientation kernel | `tolerance(err,(0,0.2),margin=π,"linear")` | identical | ✓ |
+| actuators | `kp 3.0`, `damping 0.2`, `armature 0.00149376`, `frictionloss 0.02` | identical | ✓ |
+| cube | `size=".035"`, `mass=".108"`, `condim="3"`, `friction=".3 0.05"`, **no `priority`** | identical at `--cube-priority 0` | ✓ |
+| goal | uniform quat, `goal_quat_dquat` kick on success, ×0.8 per-step decay, threshold 0.1, no curriculum | identical | ✓ |
+| success bonus | 100, added **outside** the dt-scaled sum | 100 **inside** it → 20× weaker | ✗ known |
+| critic extras | + `pert_dir`, `xfrc_applied` | absent | ✗ inert |
+
+Actuator and cube figures are from `xmls/leap_rh_mjx.xml` and `xmls/reorientation_cube.xml`;
+obs, rewards and goal machinery from `_src/manipulation/leap_hand/reorient.py`.
+
+**Two hypotheses died in this audit.**
+
+*Velocity blindness is not a bug.* Our actor sees joint pos, joint pos error, cube pos error,
+cube ori error and last action — no `joint_vel`, no `cube_ang_vel`, no `cube_lin_vel`, all of
+which are critic-only, and `history_length=1` so it cannot finite-difference either. That
+looked like a strong candidate for why the policy closes at 1.5–2.0 rad/s instead of
+arriving. But playground's own `default_config()` sets **`history_len=1`**, and its state
+vector is the same five terms: the reference is *also* velocity-blind and single-frame, and
+it works. Adding velocity or a history stack would be a deviation *away* from the reference,
+not a fix toward it.
+
+*Contact-buffer overflow is not happening.* `nconmax=64` looked alarmingly small next to
+playground's `naconmax=30*8192`, and this project has already been bitten once by silent
+constraint dropping (the njmax overflow, runs before 2026-08-29). But mjwarp's `nconmax` is
+**per world** — `naconmax` is the all-worlds override — so 64 × 8192 = 524k against
+playground's 246k. We are more generous, and measured peak `ncon` was 24. Dead.
+
+### Palm angle is settled — 1.92 is correct and there is nothing to sweep
+
+The MuJoCo Playground paper states the hardware bracket **"tilts the palm downward by 20°"**.
+`1.92 rad = 110.0° = 90° + 20°`. `1.88 rad = 107.7°`. So **1.92 is the hardware-correct palm
+angle and 1.88 was simply wrong** — which is the whole of the "1.88 plateaus, 1.92 takes off"
+evidence, now explained rather than merely observed.
+
+This closes the axis that the run 27–28 list had promoted to "the only cheap structural axis
+left" and was about to become the next experiment. 1.84 / 1.96 do not need running: there is
+no reason to expect anything at an angle the hardware does not use. **Removed from the open
+list, for free.**
+
+### What the reference actually achieves
+
+Nobody in this project had ever established this. Every reference number in this file up to
+now — Hamid's 284, the 157.7 / 166.3 / 171.2 post-fix repeats, our own ~198 — is **reward**,
+not success, and reward is not comparable across implementations. So "does the reference
+even reach the threshold?" was genuinely open, and if the answer had been no, our 0/32 would
+have been parity rather than a gap.
+
+It is not. MuJoCo Playground paper, Table I, ten real-world hardware trials measuring
+consecutive successful rotations before failure:
+
+| metric | value |
+| --- | --- |
+| median rotations | 3.5 |
+| mean rotations | 7.1 |
+| best trial | 27 |
+
+and the policy "trains within 30 min on two RTX 4090 GPUs". Corroborated on our own side of
+the fence by Hamid's bare-LeapHand run on the same script — reward **375**, climbing steadily
+from 130, and the video at the top of his Notion page is the one where the cube is genuinely
+reoriented — against LeapXELA's 131–197 on the same script.
+
+**The reference definitively works, our 0/32 is a real gap, and the difference is the hand.**
+
+---
+
+## Pad geometry and rolling resistance (2026-09-06)
+
+Two measurements on the compiled `Box_palm192` hand, both aimed at Hamid's one-line diagnosis
+of the whole XELA problem: *"the cube stops rolling when it hits the 4x4 finger sensor pads."*
+
+### Pad protrusion — what the taxels cost in usable cube size
+
+Each phalanx carries both a structural collision box (`<finger>_<segment>_collision_<N>`) and
+a XELA pad (`<finger>_<segment>_uspa<N>`). Measuring how far the pad's outer surface lies
+beyond the structural surface it mounts on, along the struct→pad centroid direction:
+
+| body | struct surface | pad surface | protrusion |
+| --- | --- | --- | --- |
+| `palm` | 38.2 mm | 39.3 mm | **+1.10 mm** |
+| `if/mf/rf_px` | 33.4 mm | 36.2 mm | **+2.84 mm** |
+| `if/mf/rf_md` | 9.0 mm | 15.7 mm | **+6.75 mm** |
+| `th_px` | 12.6 mm | 17.0 mm | +4.42 mm |
+| `th_ds` | 12.1 mm | 8.7 mm | −3.35 mm (recessed) |
+
+Median **2.84 mm per surface**, so a grasp loses ~5.7 mm of cavity: **a 70 mm cube in this
+hand has the clearance a 75.7 mm cube would have in the bare LEAP hand, i.e. scale 1.081
+before anyone changes anything.** On the tip-over axis it is worse — tipping rolls the cube
+against the palm using the middle phalanges, and `palm + md` is 1.10 + 6.75 = **7.9 mm** —
+and the reorient residual is 96% horizontal-axis error, i.e. exactly that axis. The middle
+phalanges are the single most padded segment on the hand.
+
+**This is the day's one durable positive result, and it stands independently of runs 29–30.**
+Those runs show that restoring the clearance does not fix reorient; this measurement still
+quantifies what tactile skin costs in usable cube size, which is a real number about the
+hardware and is the kind of thing the internship exists to produce.
+
+Caveat: protrusion is measured along the struct→pad centroid direction as a proxy for the
+outward normal, so treat it as ±1 mm. The `th_ds` sign is worth a second look given that the
+thumb is exactly where the old collision-model bug lived (commit `d60d4bd`).
+
+### `scripts/rolling_probe.py` — corrugation costs nothing on the palm
+
+Run 25 established that the pads do not leave **gaps** to wedge into: half-extents ~15 × 11 ×
+14 mm at 16.0 mm centre spacing, so they overlap by ~6 mm and the shell is continuous. But
+continuous is not smooth — 36 overlapping boxes at assorted orientations form a *faceted*
+surface, and gap width says nothing about facet height. Rolling over ridges is also a
+different physical quantity from sliding, which is all `slope_test.py` and `friction_probe.py`
+measure, and it would explain why every friction/condim/priority intervention returned null
+on a task whose residual is tip-over.
+
+The probe freezes every collision geom as a static worldbody box at its home-pose transform,
+tiles the patch into a track, presses the cube in with a 5 N normal load, and drives the roll
+with a velocity servo, reading back the torque required. Palm region, matched friction 0.20,
+matched footprint:
+
+| surface | geoms | μ | breakaway τ | τ @ ω=0.5 | ω=1.0 | ω=2.0 |
+| --- | --- | --- | --- | --- | --- | --- |
+| pads | 63 (9 tiled) | 0.20 | 0.2114 N·m | 0.1000 | 0.1095 | 0.1182 |
+| smooth | 1 | 0.20 | 0.2140 N·m | 0.1000 | 0.1262 | 0.1199 |
+
+**Null.** The real pad shell is 0.99× the smooth plate to start rolling and equal or
+marginally *lower* to keep rolling. Corrugation costs nothing there.
+
+**This does not refute Hamid.** His claim is about the *finger* pads, and that region is not
+measurable by this rig: the finger pads are distributed along curved phalanges, so tiling
+them produces a jumble rather than a track and the cube falls down it — slip −18 to −2,
+against −0.13 to −0.23 on the palm. Testing the fingers needs a different design that keeps
+the curvature and varies only the surface: the real finger against the same finger with its
+pad boxes replaced by a capsule of matching radius. **The finger claim remains open.**
+
+Three rig formulations failed before one worked, each of which looked fine until the numbers
+came back:
+
+1. **Free cube + applied torque measures free spin, not rolling.** Once static friction
+   breaks, an unconstrained rigid body under a pure torque obeys `ω = τt/I` and the surface
+   underneath stops mattering. It read **866 rev/s on both surfaces** — the rigid-body answer.
+   Fixed by driving the roll with a velocity servo on a hinge and reading `actuator_force`.
+2. **Gravity alone rests the cube on one protruding box.** 1.06 N of weight balances the cube
+   on whichever geom sticks out furthest, touching a single geom — a balancing act, not a
+   surface. The grasp has 3.4–4.9 pads in contact per `friction_probe`, so the load has to be
+   imposed.
+3. **A single patch is too small.** A 70 mm cube reaches the edge of a ~50 mm palm patch
+   within a fraction of a turn and falls off (slip −20). Tile the patch into a track.
+
+And one bug worth recording because it did not present as one: a box's half-extent along the
+drop axis must be computed as `sum_j |R[axis,j]| · size[j]`, **not** `sizes.max()`. The latter
+read the wide thin control plate as 0.56 m thick, started the cube 0.67 m above it, and
+tunnelled it straight through the 20 mm plate at 8.7 m/s (17 mm of travel per 2 ms step).
+The symptom was "cube did not settle in contact with the shell", not an obvious error.
+
+The script blanks any driven cell with `|slip| > 0.6`, printing `--` instead of a torque, so
+a later reader cannot mistake a sliding or tumbling cell for a rolling resistance. Raw data
+in `eval/rolling/{palm,fingers,sensors}.json`.

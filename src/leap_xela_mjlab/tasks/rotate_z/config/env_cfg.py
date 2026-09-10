@@ -40,6 +40,9 @@ def make_rotate_z_env_cfg(
   cube_friction_torsional: float = 0.05,
   axis: tuple[float, float, float] = (0.0, 0.0, 1.0),
   cube_condim: int = 3,
+  # See ``reorient/config/env_cfg.make_reorient_env_cfg`` for what these do.
+  cube_priority: int = 1,
+  palm_euler: tuple[float, float, float] | None = None,
 ) -> ManagerBasedRlEnvCfg:
   """``axis`` selects which world axis the angular-velocity reward projects onto.
 
@@ -228,13 +231,16 @@ def make_rotate_z_env_cfg(
     scene=SceneCfg(
       terrain=TerrainEntityCfg(terrain_type="plane"),
       entities={
-        "robot": get_leap_xela_cfg(finger_tip_type=finger_tip_type),
+        "robot": get_leap_xela_cfg(
+          finger_tip_type=finger_tip_type, palm_euler=palm_euler
+        ),
         "cube": get_cube_cfg(
           half_size=cube_half_size,
           mass=cube_mass,
           friction_sliding=cube_friction_sliding,
           friction_torsional=cube_friction_torsional,
           condim=cube_condim,
+          priority=cube_priority,
         ),
       },
       num_envs=1,
@@ -297,6 +303,8 @@ def make_rotate_z_env_cfg(
     "cube_friction_torsional": cube_friction_torsional,
     "axis": axis,
     "cube_condim": cube_condim,
+    "cube_priority": cube_priority,
+    "palm_euler": palm_euler,
   }
 
   if play:

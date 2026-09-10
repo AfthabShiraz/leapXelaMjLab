@@ -34,6 +34,7 @@ from leap_xela_mjlab.tasks.reorient.mdp.observations import (
   joint_vel_abs,
 )
 from leap_xela_mjlab.tasks.reorient.mdp.rewards import (
+  action_l2,
   action_rate_l2,
   cube_orientation_fine,
   cube_orientation_tolerance,
@@ -75,6 +76,7 @@ __all__ = [
   "joint_vel_l2",
   "observations",
   "orientation_progress",
+  "action_l2",
   "action_rate_l2",
   "randomize_body_mass",
   "randomize_geom_friction",

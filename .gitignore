@@ -5,3 +5,13 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+
+# MuJoCo appends a warning log on every run; it is pure churn.
+MUJOCO_LOG.TXT
+
+# Rendered rollouts and frame dumps: hundreds of MB of regenerable output
+# (scripts/render.py). The eval JSON/TXT results next to them are kept.
+eval/videos/
+
+# wandb's local run cache; the runs themselves live on the server.
+wandb/

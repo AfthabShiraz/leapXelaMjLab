@@ -1,0 +1,49 @@
+{
+  "config": {
+    "surfaces": [
+      "smooth",
+      "pads"
+    ],
+    "finger_tip_type": "Box_palm192",
+    "palm_euler": [
+      0.0,
+      1.92,
+      -1.57
+    ],
+    "bare_xml": "None",
+    "torque_rate": 0.02,
+    "max_torque": 2.0,
+    "settle_s": 1.5,
+    "release_omega": 0.5,
+    "drop_axis": "auto",
+    "json_out": "eval/rolling/probe.json",
+    "seed": 0,
+    "extra_frictions": []
+  },
+  "results": {
+    "pads": {
+      "n_geoms": 36,
+      "settle_contacts": 4,
+      "settle_speed_mm_s": 1.0086822814045635e-05,
+      "tau_roll_N_m": 0.03411999999999928,
+      "rolled": true,
+      "max_torque_N_m": 2.0,
+      "pen_p95_mm": 0.010372144645015074,
+      "distinct_geoms_touched": 1,
+      "translation_at_breakaway_mm": 0.8912696717015809,
+      "shell_friction": 0.2333333333333334
+    },
+    "smooth": {
+      "n_geoms": 1,
+      "settle_contacts": 4,
+      "settle_speed_mm_s": 4.262264372883355e-12,
+      "tau_roll_N_m": 0.03955999999999906,
+      "rolled": true,
+      "max_torque_N_m": 2.0,
+      "pen_p95_mm": 0.01036400598138561,
+      "distinct_geoms_touched": 1,
+      "translation_at_breakaway_mm": 1.0246362829825344,
+      "shell_friction": 0.2333333333333334
+    }
+  }
+}

@@ -1,0 +1,13 @@
+[INFO] Wrote eval/videos/slope_tilt_priority0.mp4 — 783 frames, 13.1s, 1280x720
+
+[INFO] Release angles (cube_priority=0, ramp friction 1.0):
+    mu   atan(mu)   released    delta
+--------------------------------------
+  0.05       2.9°      45.5°   +42.6°
+  0.10       5.7°      45.5°   +39.7°
+  0.20      11.3°      45.5°   +34.1°
+  0.30      16.7°      45.5°   +28.8°
+  0.50      26.6°      45.5°   +18.9°
+  0.80      38.7°      45.5°    +6.8°
+  1.20      50.2°      45.3°    -4.9°
+[INFO] wrote eval/friction/slope_priority0.json

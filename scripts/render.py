@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Literal
 
 import imageio.v2 as imageio
+import mujoco
 import numpy as np
 import torch
 import tyro
@@ -50,6 +51,165 @@ class RenderConfig:
   camera_azimuth: float | None = None
   device: str | None = None
   seed: int | None = None
+  view: Literal["visual", "collision", "both"] = "visual"
+  """Which geom groups to draw.
+
+  The hand MJCF splits every link into a ``visual`` mesh (group 2, contype 0)
+  and one or more ``collision`` boxes (group 3), and the cube does the same: a
+  textured mesh in group 2 and the actual box in group 3. What the physics sees
+  is group 3 ONLY -- the group-2 meshes are decorative and collide with nothing.
+
+  ``collision`` hides group 2 and shows group 3, which is the view that answers
+  "is the cube getting stuck between the gaps": the pads are discrete boxes with
+  real spaces between them, and a cube wedged into one is invisible in the
+  default render because the visual mesh covers it.
+  """
+  show_contacts: bool = False
+  """Overlay contact points and contact force arrows (MuJoCo's own viz)."""
+  transparent: bool = False
+  """Draw everything see-through, so cube-inside-hand geometry is visible."""
+  cube_priority: int | None = None
+  """Rebuild the env with this cube contact priority before replaying.
+
+  This matters when replaying an OLD checkpoint. Every run up to and including
+  run 21 was trained with all geoms at priority 0, where a cube-fingertip
+  contact resolved to the fingertip's friction (0.5) rather than the cube's
+  (0.3). The task now defaults to priority 1, so replaying such a checkpoint
+  through the stock config quietly gives it a more slippery grasp than it ever
+  trained against. Pass ``--cube-priority 0`` for a faithful replay, or 1 to see
+  what the change does to a policy that never saw it.
+  """
+  cube_friction_sliding: float | None = None
+  """Rebuild the env with this cube sliding friction. Only bites at priority 1."""
+  palm_euler: tuple[float, float, float] | None = None
+  """Hand-base orientation, xyz Euler radians, e.g. ``--palm-euler 0 1.92 -1.57``.
+
+  ``None`` keeps the angle baked into the model file (Box = 1.88,
+  Box_palm192 = 1.92). Passing the reference value explicitly is a no-op that
+  makes the angle visible in the log and the video's provenance rather than
+  hidden inside a ``finger_tip_type`` string.
+  """
+
+
+# Geom groups, as the LEAP-XELA MJCF assigns them.
+_GROUP_VISUAL = 2
+_GROUP_COLLISION = 3
+
+# Group 0 is mjlab's terrain plane -- kept in every view so the scene still has
+# a floor and the lighting has something to fall on. Everything in the hand and
+# cube models carries an explicit group (2 visual / 3 collision), so including 0
+# adds the ground and nothing else.
+_GROUP_TERRAIN = 0
+
+_VIEW_GROUPS: dict[str, tuple[int, ...]] = {
+  "visual": (_GROUP_TERRAIN, _GROUP_VISUAL),
+  "collision": (_GROUP_TERRAIN, _GROUP_COLLISION),
+  "both": (_GROUP_TERRAIN, _GROUP_VISUAL, _GROUP_COLLISION),
+}
+
+
+def _scene_options(env) -> list:
+  """Every MjvOption the offscreen renderer actually draws through.
+
+  mjlab keeps two: ``Renderer._scene_option`` is what ``update_scene`` uses for
+  the tracked env (it is not passed explicitly, so the Renderer's own default
+  applies), and ``OffscreenRenderer._opt`` is used by ``mjv_addGeoms`` for the
+  neighbouring context envs. Both have to be set or the two halves of the frame
+  disagree.
+  """
+  opts = []
+  renderer = getattr(env, "_offline_renderer", None)
+  if renderer is None:
+    return opts
+  own = getattr(renderer, "_opt", None)
+  if own is not None:
+    opts.append(own)
+  try:
+    inner = renderer.renderer
+  except ValueError:
+    inner = None  # not initialized yet; caller renders a frame first
+  if inner is not None and getattr(inner, "_scene_option", None) is not None:
+    opts.append(inner._scene_option)
+  return opts
+
+
+def _apply_scene_options(env, cfg: "RenderConfig") -> None:
+  if cfg.view == "visual" and not cfg.show_contacts and not cfg.transparent:
+    return  # stock rendering, nothing to override
+
+  opts = _scene_options(env)
+  if not opts:
+    # The Renderer is built lazily on the first render; force it, then retry.
+    env.render()
+    opts = _scene_options(env)
+  if not opts:
+    raise SystemExit(
+      "Could not reach the renderer's MjvOption to set geom groups. "
+      "mjlab's OffscreenRenderer internals may have changed."
+    )
+
+  groups = _VIEW_GROUPS[cfg.view]
+  for opt in opts:
+    opt.geomgroup[:] = 0
+    for g in groups:
+      opt.geomgroup[g] = 1
+    if cfg.show_contacts:
+      opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = True
+      opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTFORCE] = True
+    if cfg.transparent:
+      opt.flags[mujoco.mjtVisFlag.mjVIS_TRANSPARENT] = True
+
+  print(
+    f"[INFO] view={cfg.view} (geom groups {list(groups)})"
+    f"{' +contacts' if cfg.show_contacts else ''}"
+    f"{' +transparent' if cfg.transparent else ''}"
+  )
+
+
+def _apply_cube_overrides(env_cfg, cfg: "RenderConfig", task_id: str):
+  """Rebuild the env cfg when a cube contact override is requested.
+
+  Mirrors ``train.py``'s ``_apply_env_overrides``: rebuild from the arguments the
+  task was registered with, so overriding one knob does not silently revert
+  preset / finger_tip_type to their defaults.
+  """
+  if (
+    cfg.cube_priority is None
+    and cfg.cube_friction_sliding is None
+    and cfg.palm_euler is None
+  ):
+    return env_cfg
+
+  if "Rotate" in task_id:
+    from leap_xela_mjlab.tasks.rotate_z.config.env_cfg import (
+      make_rotate_z_env_cfg as make_env_cfg,
+    )
+  else:
+    from leap_xela_mjlab.tasks.reorient.config.env_cfg import (
+      make_reorient_env_cfg as make_env_cfg,
+    )
+
+  kwargs = dict(getattr(env_cfg, "build_kwargs", {}))
+  if not kwargs:
+    raise SystemExit(
+      f"{task_id} was registered without build_kwargs, so a cube override would "
+      "rebuild it with default arguments."
+    )
+  if cfg.cube_priority is not None:
+    kwargs["cube_priority"] = cfg.cube_priority
+  if cfg.cube_friction_sliding is not None:
+    kwargs["cube_friction_sliding"] = cfg.cube_friction_sliding
+  if cfg.palm_euler is not None:
+    kwargs["palm_euler"] = tuple(cfg.palm_euler)
+  rebuilt = make_env_cfg(play=True, **{
+    k: v for k, v in kwargs.items() if k != "play"
+  })
+  print(
+    f"[INFO] cube override: priority={kwargs.get('cube_priority')} "
+    f"friction_sliding={kwargs.get('cube_friction_sliding')} "
+    f"palm_euler={kwargs.get('palm_euler')}"
+  )
+  return rebuilt
 
 
 def run_render(task_id: str, cfg: RenderConfig) -> None:
@@ -57,6 +217,7 @@ def run_render(task_id: str, cfg: RenderConfig) -> None:
   device = cfg.device or ("cuda:0" if torch.cuda.is_available() else "cpu")
 
   env_cfg = load_env_cfg(task_id, play=True)
+  env_cfg = _apply_cube_overrides(env_cfg, cfg, task_id)
   agent_cfg = load_rl_cfg(task_id)
   env_cfg.scene.num_envs = 1
   if cfg.seed is not None:
@@ -106,6 +267,8 @@ def run_render(task_id: str, cfg: RenderConfig) -> None:
       runner = runner_cls(wrapped, asdict(agent_cfg), tmp, device=device)
       runner.load(str(resume_path), map_location=device)
     policy = runner.get_inference_policy(device=device)
+
+  _apply_scene_options(env, cfg)
 
   fps = cfg.fps if cfg.fps is not None else 1.0 / step_dt
   out_path = Path(cfg.out)

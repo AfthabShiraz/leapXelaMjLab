@@ -1,0 +1,136 @@
+{
+  "config": {
+    "surfaces": [
+      "smooth",
+      "pads"
+    ],
+    "finger_tip_type": "Box_palm192",
+    "palm_euler": [
+      0.0,
+      1.92,
+      -1.57
+    ],
+    "bare_xml": "None",
+    "region": "sensors",
+    "normal_force": 5.0,
+    "omegas": [
+      0.5,
+      1.0,
+      2.0,
+      4.0
+    ],
+    "tile": 3,
+    "servo_kv": 5.0,
+    "hold_s": 2.0,
+    "torque_rate": 0.02,
+    "max_torque": 2.0,
+    "settle_s": 1.5,
+    "release_omega": 0.5,
+    "drop_axis": "auto",
+    "json_out": "eval/rolling/sensors.json",
+    "seed": 0,
+    "extra_frictions": []
+  },
+  "results": {
+    "pads": {
+      "n_geoms": 98,
+      "settle_contacts": 12,
+      "settle_speed_mm_s": 0.0004956690843272412,
+      "tau_roll_N_m": 0.21364000000002273,
+      "rolled": true,
+      "max_torque_N_m": 2.0,
+      "pen_p95_mm": 0.056231059975863376,
+      "distinct_geoms_touched": 6,
+      "translation_at_breakaway_mm": 0.8435271616020114,
+      "shell_friction": 0.19999999999999998,
+      "driven": [
+        {
+          "omega_rad_s": 0.5,
+          "torque_mean_N_m": 0.10070842517997322,
+          "torque_p95_N_m": 0.41909093703441336,
+          "travelled_mm": 262.6645330074522,
+          "ideal_mm": 44.5633840657307,
+          "slip": -4.894178337534324,
+          "distinct_geoms": 8
+        },
+        {
+          "omega_rad_s": 1.0,
+          "torque_mean_N_m": 0.08835916448432772,
+          "torque_p95_N_m": 0.5547556154514272,
+          "travelled_mm": 289.3838319318178,
+          "ideal_mm": 89.1267681314614,
+          "slip": -2.246879001659507,
+          "distinct_geoms": 8
+        },
+        {
+          "omega_rad_s": 2.0,
+          "torque_mean_N_m": 0.07993165754989763,
+          "torque_p95_N_m": 0.27190706310481916,
+          "travelled_mm": 68.18472249236977,
+          "ideal_mm": 178.2535362629228,
+          "slip": 0.6174846013052008,
+          "distinct_geoms": 6
+        },
+        {
+          "omega_rad_s": 4.0,
+          "torque_mean_N_m": 0.19143879498194943,
+          "torque_p95_N_m": 1.4078465965024989,
+          "travelled_mm": 809.9540884394385,
+          "ideal_mm": 356.5070725258456,
+          "slip": -1.2719159053449616,
+          "distinct_geoms": 10
+        }
+      ]
+    },
+    "smooth": {
+      "n_geoms": 1,
+      "settle_contacts": 4,
+      "settle_speed_mm_s": 1.8604937727873226e-12,
+      "tau_roll_N_m": 0.21396000000002283,
+      "rolled": true,
+      "max_torque_N_m": 2.0,
+      "pen_p95_mm": 0.05818214514913123,
+      "distinct_geoms_touched": 1,
+      "translation_at_breakaway_mm": 0.7790588842004608,
+      "shell_friction": 0.19999999999999962,
+      "driven": [
+        {
+          "omega_rad_s": 0.5,
+          "torque_mean_N_m": 0.09998170764823047,
+          "torque_p95_N_m": 0.19646469091591312,
+          "travelled_mm": 52.611100121191505,
+          "ideal_mm": 44.5633840657307,
+          "slip": -0.18059032598580194,
+          "distinct_geoms": 1
+        },
+        {
+          "omega_rad_s": 1.0,
+          "torque_mean_N_m": 0.1262406244734958,
+          "torque_p95_N_m": 0.20540975260115152,
+          "travelled_mm": 108.49707174059844,
+          "ideal_mm": 89.1267681314614,
+          "slip": -0.21733429827238848,
+          "distinct_geoms": 1
+        },
+        {
+          "omega_rad_s": 2.0,
+          "torque_mean_N_m": 0.11994932075403177,
+          "torque_p95_N_m": 0.20646841620535042,
+          "travelled_mm": 263.702221488686,
+          "ideal_mm": 178.2535362629228,
+          "slip": -0.4793660031502933,
+          "distinct_geoms": 1
+        },
+        {
+          "omega_rad_s": 4.0,
+          "torque_mean_N_m": 0.14143783225563616,
+          "torque_p95_N_m": 0.24910474557206735,
+          "travelled_mm": 676.4259957803182,
+          "ideal_mm": 356.5070725258456,
+          "slip": -0.8973704812862571,
+          "distinct_geoms": 1
+        }
+      ]
+    }
+  }
+}

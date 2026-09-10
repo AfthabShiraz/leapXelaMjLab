@@ -41,17 +41,27 @@ def _load_config(path: Path) -> dict[str, Any]:
 
 
 def _build_param_grid(raw: dict[str, Any]) -> list[dict[str, Any]]:
-  """Cartesian product of swept cube physics and seeds."""
+  """Cartesian product of swept cube physics, palm angle and seeds."""
   base_half = float(raw.get("cube_half_size", 0.035))
   scales = _as_list(raw.get("cube_scale", [1.0]))
   friction_cfg = raw.get("cube_friction", {}) or {}
   sliding_vals = _as_list(friction_cfg.get("sliding", [0.3]))
   torsional_vals = _as_list(friction_cfg.get("torsional", 0.05))
+  # Sliding friction is only a real axis at priority >= 1. At 0 the fingertips'
+  # 0.5 and the pads' 0.2 win the element-wise max and everything below those
+  # values collapses onto the same physics -- see robots/cube.get_cube_spec.
+  priorities = _as_list(raw.get("cube_priority", [1]))
+  # Palm angle enters as xyz Euler. Only the pitch has ever been varied (x is 0
+  # and z is -1.57 in every model shipped or referenced), so the grid axis is
+  # the pitch alone and the other two come from `palm_euler_roll` / `_yaw`.
+  palm_pitches = _as_list(raw.get("palm_pitch", [1.92]))
+  palm_roll = float(raw.get("palm_euler_roll", 0.0))
+  palm_yaw = float(raw.get("palm_euler_yaw", -1.57))
   seeds = _as_list(raw.get("seed", [42]))
 
   combos: list[dict[str, Any]] = []
-  for scale, sliding, torsional, seed in itertools.product(
-    scales, sliding_vals, torsional_vals, seeds
+  for scale, sliding, torsional, priority, pitch, seed in itertools.product(
+    scales, sliding_vals, torsional_vals, priorities, palm_pitches, seeds
   ):
     half_size = base_half * float(scale)
     combos.append(
@@ -59,6 +69,9 @@ def _build_param_grid(raw: dict[str, Any]) -> list[dict[str, Any]]:
         "cube_half_size": half_size,
         "cube_friction_sliding": float(sliding),
         "cube_friction_torsional": float(torsional),
+        "cube_priority": int(priority),
+        "palm_pitch": float(pitch),
+        "palm_euler": (palm_roll, float(pitch), palm_yaw),
         "cube_scale": float(scale),
         "seed": int(seed),
       }
@@ -71,6 +84,8 @@ def _run_name(params: dict[str, Any]) -> str:
     f"hs{params['cube_half_size']:.4f}"
     f"_mu{params['cube_friction_sliding']:.3f}"
     f"_tz{params['cube_friction_torsional']:.3f}"
+    f"_pr{params['cube_priority']}"
+    f"_pa{params['palm_pitch']:.3f}"
     f"_sc{params['cube_scale']:.2f}"
     f"_s{params['seed']}"
   )
@@ -127,6 +142,8 @@ def run_sweep(config_path: Path) -> None:
       cube_half_size=params["cube_half_size"],
       cube_friction_sliding=params["cube_friction_sliding"],
       cube_friction_torsional=params["cube_friction_torsional"],
+      cube_priority=params["cube_priority"],
+      palm_euler=params["palm_euler"],
       run_name=run_name,
       wandb_project=wandb_project,
       wandb_tags=wandb_tags,

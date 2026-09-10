@@ -1,0 +1,41 @@
+{
+  "release_angles": [
+    {
+      "mu": 0.05,
+      "predicted_deg": 2.862405226111748,
+      "released_deg": 4.104
+    },
+    {
+      "mu": 0.1,
+      "predicted_deg": 5.710593137499643,
+      "released_deg": 6.824
+    },
+    {
+      "mu": 0.2,
+      "predicted_deg": 11.309932474020215,
+      "released_deg": 12.120000000000001
+    },
+    {
+      "mu": 0.3,
+      "predicted_deg": 16.69924423399362,
+      "released_deg": 17.192
+    },
+    {
+      "mu": 0.5,
+      "predicted_deg": 26.56505117707799,
+      "released_deg": 27.344
+    },
+    {
+      "mu": 0.8,
+      "predicted_deg": 38.659808254090095,
+      "released_deg": 39.472
+    },
+    {
+      "mu": 1.2,
+      "predicted_deg": 50.19442890773481,
+      "released_deg": 45.288000000000004
+    }
+  ],
+  "cube_priority": 1,
+  "ramp_friction": 1.0
+}

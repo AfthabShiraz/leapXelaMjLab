@@ -190,6 +190,29 @@ def energy_l1(
   return torch.sum(torch.abs(vel) * torch.abs(tau), dim=-1)
 
 
+def action_l2(env: ManagerBasedRlEnv) -> torch.Tensor:
+  """Penalize the MAGNITUDE of the raw policy output.
+
+  ``action_rate_l2`` penalizes only the *change* in action, and the action term
+  clips to the actuator ctrl range, so above the clip the reward gradient with
+  respect to the action is exactly zero and nothing pulls its magnitude back.
+  The optimum of a rate-only penalty is therefore a large CONSTANT action -- and
+  that is what the reference line learned. Measured on run 14's model_2999,
+  deterministic, between the approach phase and the stall:
+
+      steps 0-80     mean |a| 8.3   step-to-step |da| 2.16
+      steps 150-400  mean |a| 13.4  step-to-step |da| 0.93
+
+  Magnitude grows while change collapses. At ``scale=0.5`` a mean |a| of 13.4 is
+  a commanded joint delta of 6.7 rad against a median ctrl range of 2.27 rad --
+  3x the entire range, p95 15x. Every action is fully saturated, so the policy
+  is a bang-bang controller with no fine authority, which is the standing
+  explanation for the ~35 deg steady-state shell it converges to from any
+  starting offset. Same space as ``action_rate_l2``: raw output, pre-scale.
+  """
+  return torch.sum(torch.square(env.action_manager.action), dim=1)
+
+
 def termination_penalty(env: ManagerBasedRlEnv) -> torch.Tensor:
   """1.0 on environments that terminated for a non-timeout reason this step."""
   # Prefer termination manager's terminated flag when available.

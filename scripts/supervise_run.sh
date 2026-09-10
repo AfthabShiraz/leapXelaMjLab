@@ -19,21 +19,46 @@ set -uo pipefail
 REPO="/home/afthabshiraz/MujocoRL-Internship/leapXelaMjLab"
 UV="/home/afthabshiraz/.local/bin/uv"
 
-TASK="Mjlab-LeapXELA-Cube-Reorient-Reference"
-EXPERIMENT="leap_xela_cube_reorient_reference"
-# Overridable so a new experiment does not need the script edited (and so the
-# @reboot cron hook, which passes nothing, resumes whatever the defaults name).
+TASK="${TASK:-Mjlab-LeapXELA-Cube-Reorient-Reference}"
+EXPERIMENT="${EXPERIMENT:-leap_xela_cube_reorient_reference}"
+CONSOLE_DIR="$REPO/logs/console"
+
+# Where the in-flight run's settings live. run_queue.sh writes this before each
+# run, so the @reboot hook -- which passes no environment at all -- resumes the
+# run that was actually going rather than whatever the defaults happened to
+# name. Hardcoded defaults were a live hazard: after run 21 finished they still
+# said RUN_NAME=entropy-1e-3, so any bare invocation would have relaunched a
+# finished run under a stale config. There are now no run defaults; an
+# unspecified RUN_NAME is a hard error.
+STATE_FILE="$CONSOLE_DIR/CURRENT_RUN.env"
+if [ -f "$STATE_FILE" ]; then
+  while IFS= read -r line; do
+    case "$line" in ''|'#'*) continue;; esac
+    key=${line%%=*}; val=${line#*=}
+    case "$key" in
+      RUN_NAME|MAX_ITERS|NUM_ENVS|SEED|SAVE_INTERVAL|EXTRA_ARGS|TASK|EXPERIMENT) ;;
+      *) continue;;
+    esac
+    # An explicit environment variable always wins over the state file.
+    [ -n "${!key:-}" ] || printf -v "$key" '%s' "$val"
+  done <"$STATE_FILE"
+fi
+
 # EXTRA_ARGS is applied to the fresh launch AND every resume: an override that
 # is dropped on resume silently trains a different config in the same run
 # directory, which is the same class of bug as the --num-envs note below.
-RUN_NAME="${RUN_NAME:-entropy-1e-3}"
+RUN_NAME="${RUN_NAME:-}"
 MAX_ITERS="${MAX_ITERS:-1500}"
 NUM_ENVS="${NUM_ENVS:-8192}"
 SEED="${SEED:-42}"
 SAVE_INTERVAL="${SAVE_INTERVAL:-50}"
-read -r -a EXTRA_ARGS <<<"${EXTRA_ARGS:---entropy-coef 0.001}"
+read -r -a EXTRA_ARGS <<<"${EXTRA_ARGS:-}"
 
-CONSOLE_DIR="$REPO/logs/console"
+if [ -z "$RUN_NAME" ]; then
+  echo "RUN_NAME is unset and $STATE_FILE names no run. Refusing to guess." >&2
+  echo "Start runs through scripts/run_queue.sh, or set RUN_NAME explicitly." >&2
+  exit 2
+fi
 RUN_GLOB="$REPO/logs/rsl_rl/$EXPERIMENT/*_${RUN_NAME}"
 STOP_FILE="$CONSOLE_DIR/STOP_SUPERVISOR"
 LOCK="$CONSOLE_DIR/.${RUN_NAME}.lock"
@@ -52,8 +77,14 @@ fi
 log() { echo "[$(date -Is)] $*" >>"$SUP_LOG"; }
 
 # Newest checkpoint across every segment of this run, by iteration number.
+# Zero-length files are skipped: a host reboot that lands mid-write leaves a
+# truncated checkpoint behind (model_650.pt of orientation-fine, 2026-09-02),
+# and resuming from one dies with EOFError inside runner.load before the first
+# iteration. Without this filter the supervisor picks the same broken file on
+# every relaunch and burns its whole failure budget on it -- 65 dead segments
+# across 13 reboots before it was noticed.
 latest_ckpt() {
-  ls -1 $RUN_GLOB/model_*.pt 2>/dev/null \
+  find $RUN_GLOB -maxdepth 1 -name 'model_*.pt' -size +0c 2>/dev/null \
     | sed 's/.*model_\([0-9]*\)\.pt/\1 &/' \
     | sort -k1,1n | tail -1 | cut -d' ' -f2
 }
@@ -120,6 +151,20 @@ while :; do
   fi
   new_it=$(latest_iter)
   log "train.py exited rc=${rc} at iter ${new_it} (log: $(basename "$out"))"
+
+  # A non-empty checkpoint can still be unreadable (a write that got far enough
+  # to have bytes but not to finish). The signature is unmistakable: the segment
+  # died inside runner.load, so it trained nothing and never reached iteration
+  # one. Quarantine that file and the next pass falls back to the checkpoint
+  # before it, costing one save interval instead of the whole retry budget.
+  if [ "$rc" -ne 0 ] && [ "$new_it" -le "$it" ] && [ -n "$ckpt" ] \
+     && grep -qE 'runner\.load|_legacy_load|UnpicklingError|EOFError' "$out"; then
+    log "checkpoint $(basename "$ckpt") failed to load — quarantining as .corrupt"
+    mv -- "$ckpt" "${ckpt}.corrupt"
+    fails=0
+    sleep 5
+    continue
+  fi
 
   # Progress resets the failure budget; a segment that trains nothing does not.
   if [ "$new_it" -gt "$it" ]; then fails=0; else fails=$((fails + 1)); fi

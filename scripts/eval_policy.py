@@ -75,6 +75,18 @@ class EvalConfig:
   """Reporting threshold only (rad). The env's own goal-drift trigger is
   whatever the task was configured with and is deliberately left alone, so the
   dynamics stay identical to training."""
+  hold_steps: int = 10
+  """Consecutive steps under the threshold required to count as a HELD success.
+
+  The stock criterion is instantaneous -- error below threshold at any single
+  sample -- and that turns out to count tumble-throughs. Measured on run 14 at
+  2999: 8 of 257 episodes dip under 5.7 deg, but the cube's median angular speed
+  AT that instant is 1.21 rad/s, i.e. 3.5 deg of rotation per control step. It
+  is passing through the goal region, not arriving in it. 10 steps is 0.5 s.
+  """
+  hold_ang_speed: float = 0.2
+  """Cube angular speed (rad/s) below which it counts as settled rather than
+  tumbling. Only 1 of those 257 episodes is under threshold AND under this."""
   min_episode_steps: int = 50
   """Segments shorter than this are dropped from the precision statistics. A
   two-step segment (cube already falling at reset) has no meaningful "minimum
@@ -89,30 +101,57 @@ class EvalConfig:
   # TRAINED with. --cube-condim especially: run 19's checkpoints are condim 6,
   # and scoring them under the condim-3 default measures a different physical
   # system (condim 3 makes torsional and rolling friction inert entirely).
+  obs_noise_scale: float | None = None
   cube_half_size: float | None = None
   cube_friction_sliding: float | None = None
   cube_friction_torsional: float | None = None
   cube_condim: int | None = None
+  # --cube-priority is the same trap as --cube-condim, and it bites every
+  # checkpoint trained before 2026-09-02 21:26. `get_cube_spec` now defaults to
+  # priority 1, so the cube outranks the hand and its 0.3 sliding friction is
+  # what the grasp sees. Runs 14, 22 and 23 predate the flag entirely: they
+  # trained under the element-wise max, where the fingertips' 0.5-1.0 won.
+  # Scoring them at the current default silently gives them a weaker grip than
+  # they ever trained with. Pass 0 for any checkpoint whose params/env.yaml
+  # build_kwargs block has no cube_priority key.
+  cube_priority: int | None = None
+  # xyz Euler radians of the hand base. All four reorient runs to date use the
+  # Box_palm192 fingertip variant with the angle baked in and palm_euler unset,
+  # so this is here to keep the reconstruction honest once a run does set it.
+  palm_euler: tuple[float, float, float] | None = None
+  # Goal-update / reward-shaping overrides -- same requirement as the cube
+  # flags: a run 22 checkpoint was trained with the goal pinned for the whole
+  # episode, and scoring it under the drift-on default measures a different
+  # task, not a worse policy.
+  goal_drift: bool | None = None
+  goal_resample_on_success: bool | None = None
+  orientation_fine: bool | None = None
 
 
 def _build_env_cfg(cfg: EvalConfig):
   """Load the task env config and apply any cube overrides.
 
-  Reuses ``train.py``'s ``_apply_cube_overrides`` verbatim so an eval env built
+  Reuses ``train.py``'s ``_apply_env_overrides`` verbatim so an eval env built
   with ``--cube-condim 6`` is byte-for-byte the env that flag produced at
   training time -- including the njmax bump and the deliberate choice not to
   disable cube-friction DR for a condim-only override.
   """
-  from train import TrainConfig, _apply_cube_overrides
+  from train import TrainConfig, _apply_env_overrides
 
   env_cfg = load_env_cfg(cfg.task, play=cfg.play_env)
   overrides = TrainConfig(
+    obs_noise_scale=cfg.obs_noise_scale,
     cube_half_size=cfg.cube_half_size,
     cube_friction_sliding=cfg.cube_friction_sliding,
     cube_friction_torsional=cfg.cube_friction_torsional,
     cube_condim=cfg.cube_condim,
+    cube_priority=cfg.cube_priority,
+    palm_euler=cfg.palm_euler,
+    goal_drift=cfg.goal_drift,
+    goal_resample_on_success=cfg.goal_resample_on_success,
+    orientation_fine=cfg.orientation_fine,
   )
-  overridden = _apply_cube_overrides(env_cfg, overrides, cfg.task)
+  overridden = _apply_env_overrides(env_cfg, overrides, cfg.task)
   return overridden if overridden is not None else env_cfg
 
 
@@ -128,6 +167,16 @@ def _segment(done: np.ndarray) -> list[tuple[int, int]]:
   """
   starts = [0] + [int(t) for t in np.nonzero(done)[0] if t > 0]
   return [(s, e - 1) for s, e in zip(starts, starts[1:] + [len(done)])]
+
+
+def _longest_run(mask: np.ndarray) -> int:
+  """Longest run of consecutive True values."""
+  best = cur = 0
+  for v in mask:
+    cur = cur + 1 if v else 0
+    if cur > best:
+      best = cur
+  return best
 
 
 def _spread(values: np.ndarray) -> dict[str, float]:
@@ -185,6 +234,7 @@ def _rollout(cfg: EvalConfig) -> dict:
   )
 
   cube = env.scene["cube"]
+  robot = env.scene["robot"]
   command = env.command_manager.get_term("goal_orientation")
 
   n_rec = cfg.num_steps + 1
@@ -194,6 +244,19 @@ def _rollout(cfg: EvalConfig) -> dict:
   ang_speed = torch.zeros(n_rec, cfg.num_envs, device=device)
   done_buf = torch.zeros(n_rec, cfg.num_envs, dtype=torch.bool, device=device)
   fell_buf = torch.zeros(n_rec, cfg.num_envs, dtype=torch.bool, device=device)
+  # Grasp state, for asking what actually separates a good episode from a bad
+  # one. Nothing about the GOAL predicts the outcome (corr of min-error with
+  # start error +0.06, with spin demanded +0.11, with tip-over demanded -0.01),
+  # so the variance has to come from the state the episode starts in. The hand
+  # base is fixed in world, so the cube's world position is already its position
+  # relative to the hand -- but ONLY once the per-env grid offset is removed.
+  # mjlab lays multiple envs out on a grid, so root_link_pos_w carries the env
+  # origin; without subtracting it, "cube x" is really "which column of the grid
+  # this env sits in" and correlates with nothing.
+  env_origins = env.scene.env_origins
+  n_j = robot.data.joint_pos.shape[-1]
+  cube_pos = torch.zeros(n_rec, cfg.num_envs, 3, device=device)
+  joint_pos = torch.zeros(n_rec, cfg.num_envs, n_j, device=device)
 
   def record(t: int) -> None:
     # World-frame rotation vector taking the cube to the goal. quat_box_minus is
@@ -204,6 +267,8 @@ def _rollout(cfg: EvalConfig) -> dict:
     r_z[t] = r[:, 2].abs()
     r_xy[t] = torch.linalg.vector_norm(r[:, :2], dim=-1)
     ang_speed[t] = torch.linalg.vector_norm(cube.data.root_link_ang_vel_w, dim=-1)
+    cube_pos[t] = cube.data.root_link_pos_w - env_origins
+    joint_pos[t] = robot.data.joint_pos
 
   obs, _ = wrapped.reset()
   # env.reset() ends with command_manager.compute(), exactly as step() does, so
@@ -229,12 +294,15 @@ def _rollout(cfg: EvalConfig) -> dict:
     "ang_speed": ang_speed.cpu().numpy(),
     "done": done_buf.cpu().numpy(),
     "fell": fell_buf.cpu().numpy(),
+    "cube_pos": cube_pos.cpu().numpy(),
+    "joint_pos": joint_pos.cpu().numpy(),
   }
 
 
 def _analyze(trace: dict, cfg: EvalConfig) -> dict:
   err, r_z, r_xy = trace["err"], trace["r_z"], trace["r_xy"]
   ang, done, fell = trace["ang_speed"], trace["done"], trace["fell"]
+  cube_pos, joint_pos = trace["cube_pos"], trace["joint_pos"]
   n_rec, num_envs = err.shape
 
   episodes: list[dict] = []
@@ -253,6 +321,7 @@ def _analyze(trace: dict, cfg: EvalConfig) -> dict:
         continue
       window = slice(s, t_end + 1)
       seg_err = err[window, e]
+      seg_ang = ang[window, e]
       i_best = int(np.argmin(seg_err))
       n_early = max(1, int(np.ceil(0.2 * length)))
       i_late = int(np.floor(0.5 * length))
@@ -267,12 +336,43 @@ def _analyze(trace: dict, cfg: EvalConfig) -> dict:
           "final_err": float(seg_err[-1]),
           "best_step": i_best,
           "reached_threshold": bool((seg_err < cfg.success_threshold).any()),
+          # Hold-based criteria. `reached_threshold` above is instantaneous and
+          # counts a cube tumbling through the goal; these ask whether it was
+          # actually brought to rest there.
+          "longest_hold": int(_longest_run(seg_err < cfg.success_threshold)),
+          "held_threshold": bool(
+            _longest_run(seg_err < cfg.success_threshold) >= cfg.hold_steps
+          ),
+          "still_threshold": bool(
+            (
+              (seg_err < cfg.success_threshold)
+              & (seg_ang < cfg.hold_ang_speed)
+            ).any()
+          ),
+          # The best error the policy actually HOLDS: the minimum over samples
+          # where the cube is settled. nan when it is never settled at all.
+          "min_err_still": float(
+            seg_err[seg_ang < cfg.hold_ang_speed].min()
+            if bool((seg_ang < cfg.hold_ang_speed).any())
+            else np.nan
+          ),
+          "ang_at_best": float(seg_ang[i_best]),
           "start_r_z": float(r_z[s, e]),
           "start_r_xy": float(r_xy[s, e]),
           "best_r_z": float(r_z[s + i_best, e]),
           "best_r_xy": float(r_xy[s + i_best, e]),
           "ang_speed_early": float(ang[s : s + n_early, e].mean()),
           "ang_speed_late": float(ang[s + i_late : t_end + 1, e].mean()),
+          # Grasp state at the instant the episode starts.
+          "start_cube_x": float(cube_pos[s, e, 0]),
+          "start_cube_y": float(cube_pos[s, e, 1]),
+          "start_cube_z": float(cube_pos[s, e, 2]),
+          "start_joint_mean": float(joint_pos[s, e].mean()),
+          "start_joint_std": float(joint_pos[s, e].std()),
+          # Where the cube ends up sitting once the policy has settled: the
+          # mean over the second half of the episode, which is the pose it
+          # actually holds rather than the one it was handed.
+          "held_cube_z": float(cube_pos[s + i_late : t_end + 1, e, 2].mean()),
         }
       )
 
@@ -296,21 +396,16 @@ def _analyze(trace: dict, cfg: EvalConfig) -> dict:
     }
 
   n_ep = len(episodes)
+  # Derived from asdict(cfg) rather than hand-listed. This block is the only
+  # record of WHICH env a result was measured in, and the hand-listed version
+  # silently omitted every field added after it was written -- the goal-drift
+  # pair and orientation_fine -- so a JSON produced with the goal pinned looked
+  # identical to one produced with it drifting. Anything added to EvalConfig is
+  # now recorded automatically; device and json_out are dropped as non-physical.
+  cfg_record = {k: v for k, v in asdict(cfg).items() if k not in ("json_out", "device")}
+  cfg_record["success_threshold_rad"] = cfg_record.pop("success_threshold")
   return {
-    "config": {
-      "checkpoint": cfg.checkpoint,
-      "task": cfg.task,
-      "num_envs": cfg.num_envs,
-      "num_steps": cfg.num_steps,
-      "seed": cfg.seed,
-      "success_threshold_rad": cfg.success_threshold,
-      "min_episode_steps": cfg.min_episode_steps,
-      "play_env": cfg.play_env,
-      "cube_condim": cfg.cube_condim,
-      "cube_half_size": cfg.cube_half_size,
-      "cube_friction_sliding": cfg.cube_friction_sliding,
-      "cube_friction_torsional": cfg.cube_friction_torsional,
-    },
+    "config": cfg_record,
     "n_episodes": n_ep,
     "n_short_episodes_excluded": n_short,
     "error_deg": {
@@ -322,6 +417,19 @@ def _analyze(trace: dict, cfg: EvalConfig) -> dict:
     "best_step": _spread(col("best_step")),
     "success_fraction": float(col("reached_threshold").mean()) if n_ep else float("nan"),
     "n_success": int(col("reached_threshold").sum()) if n_ep else 0,
+    # Hold-based success. The instantaneous number above counts a cube that
+    # tumbles through the goal region; these two require it to stay there.
+    "held_fraction": float(col("held_threshold").mean()) if n_ep else float("nan"),
+    "n_held": int(col("held_threshold").sum()) if n_ep else 0,
+    "still_fraction": float(col("still_threshold").mean()) if n_ep else float("nan"),
+    "n_still": int(col("still_threshold").sum()) if n_ep else 0,
+    "longest_hold_steps": _spread(col("longest_hold")) if n_ep else {},
+    "ang_at_best": _spread(col("ang_at_best")) if n_ep else {},
+    # Settled precision: the best error reached while the cube is NOT tumbling.
+    "settled_error_deg": (
+      _spread(np.array([v for v in col("min_err_still") * _RAD2DEG if np.isfinite(v)]))
+      if n_ep else {}
+    ),
     "decomposition_deg": {
       "total": {"start": _spread(col("start_err", _RAD2DEG)),
                 "at_best": _spread(col("min_err", _RAD2DEG)),
@@ -364,8 +472,23 @@ def _report(res: dict) -> None:
     f"  rollout        {c['num_envs']} envs x {c['num_steps']} steps, seed {c['seed']}"
     f"{', play env' if c['play_env'] else ''}"
   )
-  if c["cube_condim"] is not None:
-    print(f"  cube_condim    {c['cube_condim']} (override)")
+  # Print every override that is actually in force, not just cube_condim. Two
+  # results in this table can differ only by --goal-drift, and a header that
+  # does not say so makes them look like the same measurement.
+  _overrides = [
+    (k, c[k])
+    for k in (
+      "obs_noise_scale",
+      "cube_half_size", "cube_friction_sliding", "cube_friction_torsional",
+      "cube_condim", "cube_priority", "palm_euler",
+      "goal_drift", "goal_resample_on_success", "orientation_fine",
+    )
+    if c.get(k) is not None
+  ]
+  if _overrides:
+    print("  overrides      " + ", ".join(f"{k}={v}" for k, v in _overrides))
+  else:
+    print("  overrides      none (task defaults)")
   print(
     f"  episodes       {res['n_episodes']} scored"
     f" ({res['n_short_episodes_excluded']} shorter than"
@@ -382,11 +505,29 @@ def _report(res: dict) -> None:
     "(median) -- the goal drifts away after a success, so 'final' is not 'best'"
   )
 
-  print(f"\n-- success (error < {thr_deg:.1f} deg at any point) -------------------------")
+  print(f"\n-- success (error < {thr_deg:.1f} deg) ------------------------------------")
   print(
-    f"  {res['n_success']}/{res['n_episodes']} episodes "
-    f"= {100.0 * res['success_fraction']:.1f}%"
+    f"  instantaneous (any single step)   {res['n_success']}/{res['n_episodes']}"
+    f" = {100.0 * res['success_fraction']:.1f}%"
   )
+  print(
+    f"  HELD ({c['hold_steps']} consecutive steps)        {res['n_held']}/{res['n_episodes']}"
+    f" = {100.0 * res['held_fraction']:.1f}%"
+  )
+  print(
+    f"  SETTLED (|w| < {c['hold_ang_speed']} rad/s)         {res['n_still']}/{res['n_episodes']}"
+    f" = {100.0 * res['still_fraction']:.1f}%"
+  )
+  print(
+    f"  cube angular speed at best error : median"
+    f" {res['ang_at_best']['median']:.2f} rad/s"
+    "   (a genuine arrival would be near 0)"
+  )
+  if res["settled_error_deg"].get("n"):
+    print(
+      f"  settled error (best while |w| < {c['hold_ang_speed']}): "
+      f"{_fmt(res['settled_error_deg'])}"
+    )
 
   print("\n-- world-frame error decomposition (deg): |r|^2 = r_z^2 + |r_xy|^2 -----")
   print(f"  {'component':<10s} {'start':>10s} {'at best':>10s} {'reduction':>12s}")

@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
 import torch
 import tyro
-from rsl_rl.runners import OnPolicyRunner
 
 from mjlab.envs import ManagerBasedRlEnv
-from mjlab.rl import RslRlVecEnvWrapper
+from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg, load_runner_cls
 from mjlab.utils.os import get_checkpoint_path, get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
@@ -27,16 +27,6 @@ class PlayConfig:
   num_envs: int | None = 1
   device: str | None = None
   viewer: Literal["auto", "native", "viser"] = "auto"
-
-
-def _prepare_agent_cfg(agent_cfg) -> dict:
-  cfg_dict = asdict(agent_cfg)
-  for model_key in ("actor", "critic"):
-    model_cfg = cfg_dict.get(model_key)
-    if isinstance(model_cfg, dict):
-      if model_cfg.get("class_name", "MLPModel") != "CNNModel":
-        model_cfg.pop("cnn_cfg", None)
-  return cfg_dict
 
 
 def run_play(task_id: str, cfg: PlayConfig) -> None:
@@ -82,9 +72,14 @@ def run_play(task_id: str, cfg: PlayConfig) -> None:
     else:
       resume_path = get_checkpoint_path(log_root)
 
-    runner_cls = load_runner_cls(task_id) or OnPolicyRunner
-    runner = runner_cls(env, _prepare_agent_cfg(agent_cfg), device=device)
-    runner.load(str(resume_path), map_location=device)
+    # Same construction as train.py / eval_policy.py. Plain rsl_rl's
+    # OnPolicyRunner was used here and raised
+    # `MLPModel.__init__() got an unexpected keyword argument 'rnn_type'` --
+    # MjlabOnPolicyRunner is what strips the None optional model fields.
+    runner_cls = load_runner_cls(task_id) or MjlabOnPolicyRunner
+    with tempfile.TemporaryDirectory() as tmp:
+      runner = runner_cls(env, asdict(agent_cfg), tmp, device=device)
+      runner.load(str(resume_path), map_location=device)
     policy = runner.get_inference_policy(device=device)
 
   if cfg.viewer == "auto":

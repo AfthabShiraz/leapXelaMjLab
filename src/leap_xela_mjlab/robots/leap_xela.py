@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import mujoco
+import numpy as np
 
 from leap_xela_mjlab import LEAPXELA_MODEL_DIR
 from mjlab.actuator import XmlActuatorCfg
@@ -82,6 +83,39 @@ def _load_meshdir_assets(asset_dir: Path) -> dict[str, bytes]:
   return assets
 
 
+# Palm orientation, as the xyz Euler triple that
+# ``simplify_model_for_mjx.py --palm-euler`` bakes into ``<body name="palm">``'s
+# quat. It is the single most consequential geometric knob on this task -- see
+# the Notion reference in TRAINING_NOTES.md, where 1.88 plateaus at reward ~150
+# for every cube scale tried and 1.92 is the only angle that takes off -- but it
+# lived in the MJCF, so varying it meant regenerating a model and adding a new
+# ``finger_tip_type``. ``PALM_EULER_BAKED`` records what each shipped file
+# already contains, so ``palm_euler`` can default to "leave the file alone" and
+# a sweep can override it without touching disk.
+PALM_EULER_BAKED: dict[str, tuple[float, float, float]] = {
+    "Box": (0.0, 1.88, -1.57),
+    "Box_palm192": (0.0, 1.92, -1.57),
+}
+
+# Reproduced from ``overwrite_pose_of_the_hand``; the generator sets pos as well
+# as quat, and both shipped XMLs carry this exact value.
+PALM_POS = (0.0, 0.011, -0.01)
+
+
+def palm_euler_to_quat(euler: tuple[float, float, float]) -> list[float]:
+  """xyz Euler -> wxyz quat, via the same helper the model generator uses.
+
+  Verified to reproduce the baked attributes bit for bit: 1.88 -> (0.417209,
+  -0.570802, 0.571257, -0.416877) and 1.92 -> (0.405701, -0.579025, 0.579487,
+  -0.405378), matching ``leapXela_generated_mjx_Box{,_palm192}.xml``.
+  """
+  quat = np.zeros((4, 1), dtype=np.float64)
+  mujoco.mju_euler2Quat(
+    quat, np.array(euler, dtype=np.float64).reshape(3, 1), "xyz"
+  )
+  return quat.flatten().tolist()
+
+
 def get_hand_xml(finger_tip_type: str = "Box") -> Path:
   xml = LEAPXELA_MODEL_DIR / f"leapXela_generated_mjx_{finger_tip_type}.xml"
   if not xml.exists():
@@ -92,18 +126,29 @@ def get_hand_xml(finger_tip_type: str = "Box") -> Path:
   return xml
 
 
-def get_spec(finger_tip_type: str = "Box") -> mujoco.MjSpec:
+def get_spec(
+  finger_tip_type: str = "Box",
+  palm_euler: tuple[float, float, float] | None = None,
+) -> mujoco.MjSpec:
+  """``palm_euler=None`` keeps whatever the generated MJCF already has baked in."""
   xml_path = get_hand_xml(finger_tip_type)
   spec = mujoco.MjSpec.from_file(str(xml_path))
   spec.assets = _load_meshdir_assets(LEAPXELA_MODEL_DIR / "assets")
+  if palm_euler is not None:
+    palm = spec.body("palm")
+    palm.pos = list(PALM_POS)
+    palm.quat = palm_euler_to_quat(palm_euler)
   return spec
 
 
-def get_leap_xela_cfg(finger_tip_type: str = "Box") -> EntityCfg:
+def get_leap_xela_cfg(
+  finger_tip_type: str = "Box",
+  palm_euler: tuple[float, float, float] | None = None,
+) -> EntityCfg:
   """Fixed-base LEAP-XELA hand using XML position actuators."""
 
   def _spec_fn() -> mujoco.MjSpec:
-    return get_spec(finger_tip_type)
+    return get_spec(finger_tip_type, palm_euler=palm_euler)
 
   return EntityCfg(
     spec_fn=_spec_fn,

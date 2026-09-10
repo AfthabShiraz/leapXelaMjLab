@@ -33,16 +33,35 @@ class TrainConfig:
   gpu_ids: list[int] | Literal["all"] | None = field(default_factory=lambda: [0])
   torchrunx_log_dir: str | None = None
   # Cube physics (optional overrides for hyperparameter search).
+  # Global multiplier on the actor's observation noise -- playground's own
+  # obs_noise.level, which this port hard-coded. 1.0 is exact parity. The
+  # cube_ori term is +/-0.1 on rotation-matrix entries, ~4.7 deg of orientation
+  # noise against a 5.7 deg success threshold, so the policy cannot perceive
+  # whether it is inside the threshold it is being scored on.
+  obs_noise_scale: float | None = None
   cube_half_size: float | None = None
   cube_friction_sliding: float | None = None
   cube_friction_torsional: float | None = None
   # Contact dimensionality of the cube geom. 3 (default) makes friction[1] and
   # friction[2] inert; 4 enables torsional friction, 6 also enables rolling.
   cube_condim: int | None = None
+  # Contact priority of the cube geom (default 1 in the env cfg). The cube
+  # outranks every hand geom at >=1, so its condim and friction are the ones
+  # MuJoCo uses. Pass 0 to restore the pre-2026-09 element-wise-max mixing, in
+  # which the fingertips' 0.5 beat the cube's 0.3 and --cube-friction-sliding
+  # did nothing at the grasp. See robots/cube.get_cube_spec.
+  cube_priority: int | None = None
+  # Hand-base orientation, xyz Euler radians, e.g. --palm-euler "(0, 1.92, -1.57)".
+  # Previously only reachable by regenerating the MJCF; 1.88 vs 1.92 is the
+  # difference between Hamid's four flat runs and his one that took off.
+  palm_euler: tuple[float, float, float] | None = None
   # Override the dr_fingertip_friction sampling range (sliding friction only).
-  # MuJoCo takes a contact's friction as the elementwise max of the two geoms',
-  # and the fingertips (0.5-1.0) already dominate the cube (0.1-0.5) -- so this,
-  # not --cube-friction-sliding, is the knob that changes how well the hand grips.
+  # NOTE: at cube_priority >= 1 this no longer affects cube-fingertip contacts
+  # at all -- the cube dictates their friction -- so it now only moves
+  # fingertip-vs-terrain contacts. Use --cube-friction-sliding for the grasp.
+  # At cube_priority 0 the old behaviour returns: friction is the elementwise
+  # max, the fingertips (0.5-1.0) dominate the cube (0.1-0.5), and this is the
+  # only knob that changes how well the hand grips.
   fingertip_friction: tuple[float, float] | None = None
   # Exploration overrides. rsl_rl's GaussianDistribution is UNBOUNDED, so its
   # entropy is `const + log(std)` and the entropy bonus pushes log(std) up by a
@@ -53,6 +72,22 @@ class TrainConfig:
   # clip_to_ctrl_limits. See TRAINING_NOTES.md, "the exploration noise floor".
   entropy_coef: float | None = None
   init_std: float | None = None
+  # Goal-update / terminal-shaping overrides (reorient only). None = preset
+  # default. `--goal-drift False --goal-resample-on-success False` pins the goal
+  # for the whole episode, which turns the success bonus into a dense dwell
+  # reward; `--orientation-fine True` adds the long-tail term that is the only
+  # reward gradient below 0.2 rad. See TRAINING_NOTES.md runs 22-23.
+  goal_drift: bool | None = None
+  goal_resample_on_success: bool | None = None
+  orientation_fine: bool | None = None
+  # L2 penalty on raw action MAGNITUDE, e.g. --action-l2 0.001. None = the
+  # preset default (0.0, i.e. off, which is what runs 1-26 had). Only the action
+  # *rate* has ever been penalized, and since the action term clips to the ctrl
+  # range there is no gradient above the clip pulling the magnitude back: run
+  # 14's deterministic mean action sits at |a| = 13.4, a commanded joint delta
+  # 3x the full range, so it is permanently saturated. See mdp.rewards.action_l2
+  # and TRAINING_NOTES.md.
+  action_l2: float | None = None
   # Logging / checkpointing.
   logger: Literal["wandb", "tensorboard"] | None = None
   save_interval: int | None = None
@@ -67,20 +102,27 @@ class TrainConfig:
   upload_model: bool | None = None
 
 
-def _apply_cube_overrides(
+def _apply_env_overrides(
   env_cfg, cfg: TrainConfig, task_id: str
 ) -> object | None:
-  """Rebuild env config when cube hyperparameters are set.
+  """Rebuild env config when cube or goal/reward hyperparameters are set.
 
   The factory has to be chosen from ``task_id``: rebuilding a rotate_* task with
   ``make_reorient_env_cfg`` would silently train a *different task* than the one
   named on the command line.
   """
   if (
-    cfg.cube_half_size is None
+    cfg.obs_noise_scale is None
+    and cfg.cube_half_size is None
     and cfg.cube_friction_sliding is None
     and cfg.cube_friction_torsional is None
     and cfg.cube_condim is None
+    and cfg.cube_priority is None
+    and cfg.palm_euler is None
+    and cfg.goal_drift is None
+    and cfg.goal_resample_on_success is None
+    and cfg.orientation_fine is None
+    and cfg.action_l2 is None
   ):
     return
 
@@ -102,6 +144,9 @@ def _apply_cube_overrides(
       "silently rebuild it with default arguments. Add build_kwargs to its "
       "env-cfg factory before using --cube-* flags."
     )
+  if cfg.obs_noise_scale is not None:
+    kwargs["obs_noise_scale"] = cfg.obs_noise_scale
+    print(f"[INFO] obs_noise_scale -> {cfg.obs_noise_scale}")
   if cfg.cube_half_size is not None:
     kwargs["cube_half_size"] = cfg.cube_half_size
   if cfg.cube_friction_sliding is not None:
@@ -110,6 +155,24 @@ def _apply_cube_overrides(
     kwargs["cube_friction_torsional"] = cfg.cube_friction_torsional
   if cfg.cube_condim is not None:
     kwargs["cube_condim"] = cfg.cube_condim
+  if cfg.cube_priority is not None:
+    kwargs["cube_priority"] = cfg.cube_priority
+  if cfg.palm_euler is not None:
+    kwargs["palm_euler"] = tuple(cfg.palm_euler)
+  # reorient-only; the rotate_* factories do not take these.
+  _params = inspect.signature(make_env_cfg).parameters
+  for _name, _val in (
+    ("goal_drift", cfg.goal_drift),
+    ("goal_resample_on_success", cfg.goal_resample_on_success),
+    ("orientation_fine", cfg.orientation_fine),
+    ("action_l2_weight", cfg.action_l2),
+  ):
+    if _val is None:
+      continue
+    if _name not in _params:
+      raise SystemExit(f"{task_id} does not support --{_name.replace('_', '-')}.")
+    kwargs[_name] = _val
+    print(f"[INFO] {_name} -> {_val}")
   # Only when a friction value is being pinned: dr_cube_friction resamples the
   # cube's sliding friction every reset and would overwrite it. condim is not
   # touched by that event, so a condim-only override must leave DR alone --
@@ -169,7 +232,7 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> dict[str, Any]:
   agent_cfg = load_rl_cfg(task_id)
   assert isinstance(agent_cfg, RslRlOnPolicyRunnerCfg)
 
-  overridden = _apply_cube_overrides(env_cfg, cfg, task_id)
+  overridden = _apply_env_overrides(env_cfg, cfg, task_id)
   if overridden is not None:
     env_cfg = overridden
 
@@ -228,10 +291,17 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> dict[str, Any]:
     print(f"[INFO] Resumed at iteration {runner.current_learning_iteration}")
   add_wandb_tags(agent_cfg.wandb_tags)
   if rank == 0 and (
-    cfg.cube_half_size is not None
+    cfg.obs_noise_scale is not None
+    or cfg.cube_half_size is not None
     or cfg.cube_friction_sliding is not None
     or cfg.cube_friction_torsional is not None
     or cfg.cube_condim is not None
+    or cfg.cube_priority is not None
+    or cfg.palm_euler is not None
+    or cfg.goal_drift is not None
+    or cfg.goal_resample_on_success is not None
+    or cfg.orientation_fine is not None
+    or cfg.action_l2 is not None
   ):
     try:
       import wandb
@@ -239,10 +309,17 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> dict[str, Any]:
       if wandb.run is not None:
         wandb.config.update(
           {
+            "obs_noise_scale": cfg.obs_noise_scale,
             "cube_half_size": cfg.cube_half_size,
             "cube_friction_sliding": cfg.cube_friction_sliding,
             "cube_friction_torsional": cfg.cube_friction_torsional,
             "cube_condim": cfg.cube_condim,
+            "cube_priority": cfg.cube_priority,
+            "palm_euler": cfg.palm_euler,
+            "goal_drift": cfg.goal_drift,
+            "goal_resample_on_success": cfg.goal_resample_on_success,
+            "orientation_fine": cfg.orientation_fine,
+            "action_l2": cfg.action_l2,
           },
           allow_val_change=True,
         )
