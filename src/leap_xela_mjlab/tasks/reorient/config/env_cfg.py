@@ -7,6 +7,8 @@ https://mujocolab.github.io/mjlab/main/source/architecture_overview.html
 
 from __future__ import annotations
 
+import math
+
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs import mdp as envs_mdp
 from mjlab.managers.action_manager import ActionTermCfg
@@ -34,6 +36,13 @@ _DEFAULT_CUBE_MASS = 0.108
 # ctrl_dt = sim_dt * decimation, matching playground's ctrl_dt=0.05 / sim_dt=0.01.
 _SIM_TIMESTEP = 0.01
 _DECIMATION = 5
+
+# ``orientation_kernel="inverse"``: 1/(err + eps), weighted so its marginal
+# reward d/d(err) = w/(err+eps)^2 equals the linear term's w_lin/pi at 130 deg.
+# The approach phase keeps the pull it was learned under and only the near-goal
+# shape changes: x1.79 the linear weight, i.e. 8.93 at the reference weight 5.
+_INVERSE_EPS = 0.1
+_INVERSE_WEIGHT_PER_LINEAR = (math.radians(130.0) + _INVERSE_EPS) ** 2 / math.pi
 
 
 def _cube_mass_for_half_size(half_size: float) -> float:
@@ -101,6 +110,23 @@ def make_reorient_env_cfg(
   # mean action ran away to ~13 -- 3x the full joint range once scaled, i.e.
   # permanently clipped. See ``mdp.rewards.action_l2``.
   action_l2_weight: float = 0.0,
+  # Orientation-error threshold (rad) for success, applied to BOTH the goal
+  # command (goal drift / resample trigger, consecutive_success) and the
+  # success_bonus reward -- they must move together or the goal machinery and
+  # the reward disagree about what a success is. ``None`` keeps the preset's
+  # value (baseline 0.1, curriculum 0.4). Exists so the threshold can be varied
+  # without the ``preset`` switch, which also moves the orientation weight
+  # 5.0 -> 1.0. See research/NEXT_EXPERIMENTS.md, Experiment 1.
+  success_threshold: float | None = None,
+  # Shape of the dense orientation reward. "linear" is playground's
+  # tolerance(err, (0, 0.2), margin=pi): constant marginal reward from 180 deg to
+  # 11.5 deg and flat below, so nothing pays for the last 11.5 deg. "inverse" is
+  # 1/(err + 0.1), whose marginal reward keeps rising to zero error. Under the
+  # goal drift a success kicks the goal ~160 deg away, and with the inverse
+  # kernel that kick costs ~190 discounted reward against a +5 bonus -- pair it
+  # with a pinned goal (goal_drift=False, goal_resample_on_success=False) or the
+  # policy is trained never to cross the threshold.
+  orientation_kernel: str = "linear",
 ) -> ManagerBasedRlEnvCfg:
   # "baseline" reproduces the pre-curriculum config used by run #1
   # (`baseline-no-touch-10k`) in TRAINING_NOTES.md, so those runs can be repeated
@@ -108,6 +134,12 @@ def make_reorient_env_cfg(
   if preset not in ("baseline", "curriculum"):
     raise ValueError(f"Unknown preset {preset!r}; expected 'baseline' or 'curriculum'.")
   baseline = preset == "baseline"
+  if orientation_kernel not in ("linear", "inverse"):
+    raise ValueError(
+      f"Unknown orientation_kernel {orientation_kernel!r}; expected 'linear' or 'inverse'."
+    )
+  if success_threshold is None:
+    success_threshold = 0.1 if baseline else 0.4
 
   # With both goal-update paths off the goal is fixed for the whole episode, so
   # the success bonus becomes a dense dwell reward instead of a one-shot spike
@@ -216,7 +248,7 @@ def make_reorient_env_cfg(
     "goal_orientation": reorient_mdp.InHandReorientationCommandCfg(
       asset_name="cube",
       goal_asset_name="goal",
-      orientation_success_threshold=0.1 if baseline else 0.4,
+      orientation_success_threshold=success_threshold,
       update_goal_on_success=resample_on_success,
       use_mjx_goal_drift=use_drift,
       goal_relative_to_object=not baseline,
@@ -325,6 +357,16 @@ def make_reorient_env_cfg(
       # 930 steps, so holding the cube still outearned any attempt to reorient.
       weight=5.0 if baseline else 1.0,
       params={"command_name": "goal_orientation", "object_name": "cube"},
+    )
+    if orientation_kernel == "linear"
+    else RewardTermCfg(
+      func=reorient_mdp.cube_orientation_inverse,
+      weight=(5.0 if baseline else 1.0) * _INVERSE_WEIGHT_PER_LINEAR,
+      params={
+        "command_name": "goal_orientation",
+        "object_name": "cube",
+        "eps": _INVERSE_EPS,
+      },
     ),
     "position": RewardTermCfg(
       func=reorient_mdp.cube_position_tolerance,
@@ -384,7 +426,7 @@ def make_reorient_env_cfg(
       params={
         "command_name": "goal_orientation",
         "object_name": "cube",
-        "success_threshold": 0.1 if baseline else 0.4,
+        "success_threshold": success_threshold,
       },
     ),
   }
@@ -527,6 +569,8 @@ def make_reorient_env_cfg(
     "goal_resample_on_success": goal_resample_on_success,
     "orientation_fine": orientation_fine,
     "action_l2_weight": action_l2_weight,
+    "success_threshold": success_threshold,
+    "orientation_kernel": orientation_kernel,
   }
 
   if play:

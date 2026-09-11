@@ -81,6 +81,11 @@ class RenderConfig:
   """
   cube_friction_sliding: float | None = None
   """Rebuild the env with this cube sliding friction. Only bites at priority 1."""
+  overlay: bool = True
+  """Stamp orientation error, goals reached and time on each frame (reorient
+  tasks only). Error is the command's own metric -- against the goal the step
+  was judged by, so a success reads as the sub-threshold error it was rather
+  than the kicked goal that follows it."""
   palm_euler: tuple[float, float, float] | None = None
   """Hand-base orientation, xyz Euler radians, e.g. ``--palm-euler 0 1.92 -1.57``.
 
@@ -274,6 +279,20 @@ def run_render(task_id: str, cfg: RenderConfig) -> None:
   out_path = Path(cfg.out)
   out_path.parent.mkdir(parents=True, exist_ok=True)
 
+  command = None
+  if "goal_orientation" in getattr(env.command_manager, "_terms", {}):
+    command = env.command_manager.get_term("goal_orientation")
+  goals = 0
+  was_success = False
+  font = None
+  if cfg.overlay and command is not None:
+    from PIL import Image, ImageDraw, ImageFont
+
+    try:
+      font = ImageFont.truetype("DejaVuSans-Bold.ttf", max(14, cfg.height // 24))
+    except OSError:
+      font = ImageFont.load_default()
+
   obs, _ = wrapped.reset()
   frames: list[np.ndarray] = []
   resets = 0
@@ -283,9 +302,27 @@ def run_render(task_id: str, cfg: RenderConfig) -> None:
       actions = policy(obs)
       obs, _, dones, _ = wrapped.step(actions)
       resets += int(dones.sum().item())
+      err_deg = None
+      if command is not None:
+        err_deg = float(command.metrics["orientation_error"][0]) * 180.0 / np.pi
+        success = bool(command.metrics["success"][0] > 0.0)
+        if success and not was_success:
+          goals += 1
+          print(f"       goal {goals} reached at t={(i + 1) * step_dt:.1f}s "
+                f"(error {err_deg:.1f} deg)")
+        was_success = success
       frame = env.render()
       if frame is not None:
-        frames.append(np.asarray(frame))
+        frame = np.asarray(frame)
+        if font is not None and err_deg is not None:
+          img = Image.fromarray(frame)
+          draw = ImageDraw.Draw(img)
+          text = (f"error {err_deg:5.1f} deg   goals reached {goals}   "
+                  f"t {(i + 1) * step_dt:4.1f}s")
+          draw.text((12, 10), text, fill=(255, 255, 255), font=font,
+                    stroke_width=2, stroke_fill=(0, 0, 0))
+          frame = np.asarray(img)
+        frames.append(frame)
       if (i + 1) % 100 == 0:
         print(f"       {i + 1}/{cfg.num_steps} frames, {resets} resets")
 
@@ -298,6 +335,7 @@ def run_render(task_id: str, cfg: RenderConfig) -> None:
   print(
     f"[INFO] Wrote {out_path} — {len(frames)} frames, {secs:.1f}s, "
     f"{frames[0].shape[1]}x{frames[0].shape[0]}, {resets} episode resets"
+    + (f", {goals} goals reached" if command is not None else "")
   )
 
 

@@ -1,0 +1,249 @@
+Uninstalled 1 package in 0.50ms
+Installed 1 package in 1ms
+WARNING: Attach conflict when attaching 'leapXELA', policy is 'warning'
+timestep: parent has 0.002, child has 0.01, keeping parent value
+iterations: parent has 100, child has 5, keeping parent value
+ls_iterations: parent has 50, child has 8, keeping parent value
+
+Setting seed: 7
+Warp 1.15.0 initialized:
+   CUDA Toolkit 12.9, Driver 13.0
+   Devices:
+     "cpu"      : "aarch64"
+     "cuda:0"   : "NVIDIA GB10" (122 GiB, sm_121, mempool enabled)
+   Kernel cache:
+     /home/afthabshiraz/.cache/warp/1.15.0
+Module mujoco_warp._src.smooth c4020f1 load on device 'cuda:0' took 2.29 ms  (cached)
+Module _nxn_broadphase__locals__kernel_cd21dc9b cd21dc9 load on device 'cuda:0' took 0.29 ms  (cached)
+Module ccd_kernel_builder__locals__ccd_kernel_0bec82b5 0bec82b load on device 'cuda:0' took 1.47 ms  (cached)
+Module ccd_kernel_builder__locals__ccd_kernel_0bec82b5 00ea61b load on device 'cuda:0' took 1.24 ms  (cached)
+Module _primitive_narrowphase__locals__primitive_narrowphase_b7351434 b735143 load on device 'cuda:0' took 0.43 ms  (cached)
+Module mujoco_warp._src.constraint 36c8060 load on device 'cuda:0' took 0.23 ms  (cached)
+Module _friction_dof__locals__kernel_0cd98302 0cd9830 load on device 'cuda:0' took 0.30 ms  (cached)
+Module _limit_slide_hinge__locals__kernel_7e77232e 7e77232 load on device 'cuda:0' took 0.29 ms  (cached)
+Module _efc_contact_init__locals__kernel_c85ef7c6 c85ef7c load on device 'cuda:0' took 0.26 ms  (cached)
+Module _efc_contact_jac_dense__locals__kernel_5d1b69cd d78407b load on device 'cuda:0' took 0.33 ms  (cached)
+Module _efc_contact_update__locals__kernel_2d2d1a29 2d2d1a2 load on device 'cuda:0' took 0.29 ms  (cached)
+Module mujoco_warp._src.sensor de892d8 load on device 'cuda:0' took 1.67 ms  (cached)
+Module mujoco_warp._src.forward bfd9fb5 load on device 'cuda:0' took 0.71 ms  (cached)
+Module mujoco_warp._src.passive d8c18c6 load on device 'cuda:0' took 0.98 ms  (cached)
+Module mujoco_warp._src.forward b068ad6 load on device 'cuda:0' took 0.80 ms  (cached)
+Module _qfrc_smooth__locals__kernel_3ac7164a 3ac7164 load on device 'cuda:0' took 0.24 ms  (cached)
+Module mujoco_warp._src.support ca784c5 load on device 'cuda:0' took 0.27 ms  (cached)
+Module _small_cholesky_factorize_solve_block__locals__kernel_f158c61b e0b051e load on device 'cuda:0' took 0.27 ms  (cached)
+Module _small_cholesky_factorize_solve_block__locals__kernel_2e80fc98 00039f8 load on device 'cuda:0' took 0.29 ms  (cached)
+Module _solve_init_dof__locals__kernel_03c5735a 03c5735 load on device 'cuda:0' took 0.24 ms  (cached)
+Module mujoco_warp._src.solver 3a105a0 load on device 'cuda:0' took 1.44 ms  (cached)
+Module _solve_init_jaref_kernel__locals__kernel_b7c4a241 b7c4a24 load on device 'cuda:0' took 0.25 ms  (cached)
+Module mul_m_kernel__locals___mul_m_4f80c25f 4f80c25 load on device 'cuda:0' took 0.25 ms  (cached)
+Module _update_constraint_efc__locals__kernel_7b921a6e 7b921a6 load on device 'cuda:0' took 0.25 ms  (cached)
+Module _update_constraint_init_qfrc_constraint_dense__locals__kernel_87c13c1d 87c13c1 load on device 'cuda:0' took 0.25 ms  (cached)
+Module _update_gradient_zero_grad_dot__locals__kernel_ca4acd13 ca4acd1 load on device 'cuda:0' took 0.22 ms  (cached)
+Module _update_gradient_grad__locals__kernel_9e296ebd 9e296eb load on device 'cuda:0' took 0.23 ms  (cached)
+Module _update_gradient_JTDAJ_dense_tiled__locals__kernel_a41929e2 23f0e97 load on device 'cuda:0' took 0.63 ms  (cached)
+Module _update_gradient_cholesky__locals__kernel_34625f6b 7497c59 load on device 'cuda:0' took 26.42 ms  (cached)
+Module _linesearch_iterative_kernel__locals__kernel_5e3f51e3 a653efd load on device 'cuda:0' took 0.47 ms  (cached)
+Module _update_constraint_efc__locals__kernel_ddea4c95 ddea4c9 load on device 'cuda:0' took 0.29 ms  (cached)
+Module _update_constraint_init_qfrc_constraint_dense__locals__kernel_f58289d3 f58289d load on device 'cuda:0' took 0.26 ms  (cached)
+Module _update_gradient_zero_grad_dot__locals__kernel_819fe036 819fe03 load on device 'cuda:0' took 0.24 ms  (cached)
+Module _update_gradient_grad__locals__kernel_af49475a af49475 load on device 'cuda:0' took 0.24 ms  (cached)
+Module _update_gradient_cholesky__locals__kernel_99254395 cbbe098 load on device 'cuda:0' took 25.86 ms  (cached)
+Module _next_time_builder__locals___next_time_8c8bbcbc 8c8bbcb load on device 'cuda:0' took 0.34 ms  (cached)
+Module reset_data__locals__reset_xfrc_applied_aec370af aec370a load on device 'cuda:0' took 0.26 ms  (cached)
+Module reset_data__locals__reset_M_96396a8d 96396a8 load on device 'cuda:0' took 0.22 ms  (cached)
+Module reset_data__locals__reset_mocap_b321694c b321694 load on device 'cuda:0' took 0.22 ms  (cached)
+Module reset_data__locals__reset_contact_88cd7446 88cd744 load on device 'cuda:0' took 0.23 ms  (cached)
+Module reset_data__locals__reset_sleep_1c5b28e7 1c5b28e load on device 'cuda:0' took 0.46 ms  (cached)
+Module reset_data__locals__reset_nworld_1ba8fb6e 1ba8fb6 load on device 'cuda:0' took 0.29 ms  (cached)
+
++---------------------------------+
+|         Base Environment        |
++------------------------+--------+
+| Property               | Value  |
++------------------------+--------+
+| Number of environments | 32     |
+| Environment device     | cuda:0 |
+| Environment seed       | 7      |
+| Physics step-size      | 0.01   |
+| Environment step-size  | 0.05   |
++------------------------+--------+
+
+[INFO] <EventManager> contains 1 active terms.
++-------------------------------------+
+| Active Event Terms in Mode: 'reset' |
++--------+----------------------------+
+| Index  | Name                       |
++--------+----------------------------+
+|   0    | reset_base                 |
+|   1    | reset_robot_joints         |
+|   2    | reset_cube_pose            |
+|   3    | dr_cube_friction           |
+|   4    | dr_fingertip_friction      |
+|   5    | dr_cube_mass               |
+|   6    | dr_robot_mass              |
++--------+----------------------------+
++-----------------------------+
+| Domain Randomization Fields |
++--------+--------------------+
+| Index  | Field Name         |
++--------+--------------------+
+|   0    | geom_friction      |
+|   1    | body_mass          |
++--------+--------------------+
+
+Module repeat_array_kernel_f3ffbc3f 1391cd4 load on device 'cuda:0' took 0.40 ms  (cached)
+Module repeat_array_kernel_f3ffbc3f 43f7a6f load on device 'cuda:0' took 0.30 ms  (cached)
+[INFO] <CommandManager> contains 1 active terms.
++-------------------------------------------------------+
+|                  Active Command Terms                 |
++-------+------------------+----------------------------+
+| Index | Name             |            Type            |
++-------+------------------+----------------------------+
+|   0   | goal_orientation | InHandReorientationCommand |
++-------+------------------+----------------------------+
+
+[INFO] <ActionManager> contains 1 active terms.
++---------------------------------+
+| Active Action Terms (shape: 16) |
++-------+-----------+-------------+
+| Index | Name      |   Dimension |
++-------+-----------+-------------+
+|   0   | joint_pos |          16 |
++-------+-----------+-------------+
+
+[INFO] <ObservationManager> contains 2 groups.
++-----------------------------------------------------------+
+| Active Observation Terms in Group: 'actor' (shape: (57,)) |
++---------+-----------------------+-------------------------+
+|  Index  | Name                  |          Shape          |
++---------+-----------------------+-------------------------+
+|    0    | joint_pos             |     (16,)  ← 1×(16,)    |
+|    1    | joint_pos_error       |     (16,)  ← 1×(16,)    |
+|    2    | cube_pos_error        |      (3,)  ← 1×(3,)     |
+|    3    | cube_ori_error        |      (6,)  ← 1×(6,)     |
+|    4    | last_action           |     (16,)  ← 1×(16,)    |
++---------+-----------------------+-------------------------+
++------------------------------------------------------------+
+| Active Observation Terms in Group: 'critic' (shape: (91,)) |
++---------+-----------------------+--------------------------+
+|  Index  | Name                  |          Shape           |
++---------+-----------------------+--------------------------+
+|    0    | joint_pos             |     (16,)  ← 1×(16,)     |
+|    1    | joint_pos_error       |     (16,)  ← 1×(16,)     |
+|    2    | cube_pos_error        |      (3,)  ← 1×(3,)      |
+|    3    | cube_ori_error        |      (6,)  ← 1×(6,)      |
+|    4    | last_action           |     (16,)  ← 1×(16,)     |
+|    5    | joint_vel             |     (16,)  ← 1×(16,)     |
+|    6    | fingertip_pos         |     (12,)  ← 1×(12,)     |
+|    7    | cube_lin_vel          |      (3,)  ← 1×(3,)      |
+|    8    | cube_ang_vel          |      (3,)  ← 1×(3,)      |
++---------+-----------------------+--------------------------+
+
+[INFO] <TerminationManager> contains 3 active terms.
++------------------------------+
+|   Active Termination Terms   |
++-------+-----------+----------+
+| Index | Name      | Time Out |
++-------+-----------+----------+
+|   0   | time_out  |   True   |
+|   1   | cube_fell |  False   |
+|   2   | nan       |  False   |
++-------+-----------+----------+
+
+[INFO] <RewardManager> contains 9 active terms.
++------------------------------+
+|     Active Reward Terms      |
++-------+-------------+--------+
+| Index | Name        | Weight |
++-------+-------------+--------+
+|   0   | orientation |    5.0 |
+|   1   | position    |    0.5 |
+|   2   | termination | -100.0 |
+|   3   | hand_pose   |   -0.5 |
+|   4   | action_rate | -0.001 |
+|   5   | action_l2   |   -0.0 |
+|   6   | joint_vel   |    0.0 |
+|   7   | energy      | -0.001 |
+|   8   | success     |  100.0 |
++-------+-------------+--------+
+
+[INFO] <NullCurriculumManager> (inactive)
+[INFO] <NullMetricsManager> (inactive)
+[INFO] <NullRecorderManager> (inactive)
+--------------------------------------------------------------------------------
+Resolved observation sets: 
+	 actor :  ('actor',)
+	 critic :  ('critic',)
+--------------------------------------------------------------------------------
+Actor Model: MLPModel(
+  (obs_normalizer): EmpiricalNormalization()
+  (distribution): GaussianDistribution()
+  (mlp): MLP(
+    (0): Linear(in_features=57, out_features=512, bias=True)
+    (1): ELU(alpha=1.0)
+    (2): Linear(in_features=512, out_features=256, bias=True)
+    (3): ELU(alpha=1.0)
+    (4): Linear(in_features=256, out_features=128, bias=True)
+    (5): ELU(alpha=1.0)
+    (6): Linear(in_features=128, out_features=16, bias=True)
+  )
+)
+Critic Model: MLPModel(
+  (obs_normalizer): EmpiricalNormalization()
+  (mlp): MLP(
+    (0): Linear(in_features=91, out_features=512, bias=True)
+    (1): ELU(alpha=1.0)
+    (2): Linear(in_features=512, out_features=256, bias=True)
+    (3): ELU(alpha=1.0)
+    (4): Linear(in_features=256, out_features=128, bias=True)
+    (5): ELU(alpha=1.0)
+    (6): Linear(in_features=128, out_features=1, bias=True)
+  )
+)
+[INFO] policy loaded; learned action std = 2.793 (NOT used -- rolling out the mean)
+[INFO] rolling out 700 steps x 32 envs on cuda:0
+       200/700 steps
+       400/700 steps
+       600/700 steps
+
+==============================================================================
+DETERMINISTIC (mean-action) EVALUATION
+==============================================================================
+  checkpoint     logs/rsl_rl/leap_xela_cube_reorient_reference/2026-08-29_16-11-45_reference-v3-eulerdamp/model_2999.pt
+  task           Mjlab-LeapXELA-Cube-Reorient-Reference
+  rollout        32 envs x 700 steps, seed 7
+  overrides      cube_priority=0
+  episodes       32 scored (1 shorter than 50 steps excluded)
+
+-- orientation error (deg), per episode ------------------------------
+                       median      spread                    range
+  start                  127.26  [p10   63.06, p90  164.96]  min   31.64  max  177.34
+  minimum reached         26.80  [p10   12.87, p90   48.88]  min    9.55  max  106.39
+  final                   31.84  [p10   16.38, p90   56.58]  min   13.73  max  117.97
+  drift after best         2.45  [p10    1.32, p90   12.40]  min    0.74  max   22.22
+  best reached at step 202 of the episode (median) -- the goal drifts away after a success, so 'final' is not 'best'
+
+-- success (error < 22.9 deg) ------------------------------------
+  instantaneous (any single step)   15/32 = 46.9%
+  HELD (10 consecutive steps)        12/32 = 37.5%
+  SETTLED (|w| < 0.2 rad/s)         13/32 = 40.6%
+  cube angular speed at best error : median 1.79 rad/s   (a genuine arrival would be near 0)
+  settled error (best while |w| < 0.2):    28.45  [p10   13.89, p90   52.61]  min   12.08  max  107.49
+
+-- world-frame error decomposition (deg): |r|^2 = r_z^2 + |r_xy|^2 -----
+  component       start    at best    reduction
+  total |r|       127.3       26.8        78.4%
+  spin  r_z        49.1        5.7        92.7%
+  tip  r_xy        86.9       21.0        68.9%
+  (reduction is the median of per-episode reductions; medians of start and at-best
+   are reported separately and do not combine in quadrature)
+
+-- cube angular speed (rad/s): approach phase vs stall -----------------
+  first 20% of episode       1.16  [p10    0.73, p90    1.51]  min    0.63  max    1.64
+  last 50% of episode        0.45  [p10    0.34, p90    0.52]  min    0.17  max    0.69
+
+-- drops (cube_fell) ---------------------------------------------------
+  1 total = 0.03 per env-rollout (700 steps)
+==============================================================================
+
+[INFO] wrote eval/run14_iter2999_at040_det.json

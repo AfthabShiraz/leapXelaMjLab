@@ -24,6 +24,14 @@ Three things this measures that a naive "final error" report would get wrong:
    tip-over one; this makes that split reproducible.
 3. Episodes reset on termination, so every statistic is computed per
    episode-segment rather than over a whole env's 700-step trace.
+4. Error is measured against the goal the env JUDGED the step by. The command's
+   compute() tests success (_update_metrics) and then, under the drift, kicks
+   the goal away (_update_command) in the same call, so ``command.command``
+   read after step() is already the kicked goal. Until 2026-09-11 this script
+   measured against that, which censored every drift-on eval: a step that
+   crossed the threshold was recorded as 10-50 deg of error, so no recorded
+   error could fall below the threshold and ``reached_threshold`` was 0 by
+   construction. The old quantity is still reported as ``*_post_update``.
 
 Usage:
   uv run python scripts/eval_policy.py logs/rsl_rl/.../model_2999.pt --num-envs 64
@@ -126,6 +134,14 @@ class EvalConfig:
   goal_drift: bool | None = None
   goal_resample_on_success: bool | None = None
   orientation_fine: bool | None = None
+  # The ENV's success threshold (goal-drift trigger + success_bonus), i.e.
+  # train.py's --success-threshold. Distinct from --success-threshold above,
+  # which is reporting-only. Matters for dynamics: under the drift the goal is
+  # kicked away on every step below the env threshold, so HELD at the env
+  # threshold is ~impossible and minimum error is capped near it. Score a
+  # threshold-relaxed checkpoint in the reference env (leave this unset) for
+  # best error and HELD; set it only to reproduce the training env.
+  env_success_threshold: float | None = None
 
 
 def _build_env_cfg(cfg: EvalConfig):
@@ -150,6 +166,7 @@ def _build_env_cfg(cfg: EvalConfig):
     goal_drift=cfg.goal_drift,
     goal_resample_on_success=cfg.goal_resample_on_success,
     orientation_fine=cfg.orientation_fine,
+    success_threshold=cfg.env_success_threshold,
   )
   overridden = _apply_env_overrides(env_cfg, overrides, cfg.task)
   return overridden if overridden is not None else env_cfg
@@ -239,6 +256,7 @@ def _rollout(cfg: EvalConfig) -> dict:
 
   n_rec = cfg.num_steps + 1
   err = torch.zeros(n_rec, cfg.num_envs, device=device)
+  err_post = torch.zeros(n_rec, cfg.num_envs, device=device)
   r_z = torch.zeros(n_rec, cfg.num_envs, device=device)
   r_xy = torch.zeros(n_rec, cfg.num_envs, device=device)
   ang_speed = torch.zeros(n_rec, cfg.num_envs, device=device)
@@ -258,12 +276,34 @@ def _rollout(cfg: EvalConfig) -> dict:
   cube_pos = torch.zeros(n_rec, cfg.num_envs, 3, device=device)
   joint_pos = torch.zeros(n_rec, cfg.num_envs, n_j, device=device)
 
-  def record(t: int) -> None:
+  goal_prev: list[torch.Tensor | None] = [None]
+  metric_gap = [0.0]
+
+  def record(t: int, done: torch.Tensor | None = None) -> None:
+    # The goal this step was judged against (see item 4 of the module
+    # docstring). The command only changes the goal inside _update_command, and
+    # time-based resampling never fires (resampling_time_range 1e9), so that is
+    # the previous step's post-update goal -- except on a reset step, where the
+    # freshly sampled goal is the one judged and nothing has moved it yet.
+    goal_now = command.command.clone()
+    if goal_prev[0] is None or done is None:
+      goal_judged = goal_now
+    else:
+      goal_judged = torch.where(done.unsqueeze(-1), goal_now, goal_prev[0])
+    goal_prev[0] = goal_now
+    cube_q = cube.data.root_link_quat_w
     # World-frame rotation vector taking the cube to the goal. quat_box_minus is
     # log(q1 * q2^-1) -- left multiplication, so r lives in the world frame and
     # r_z is the palm-normal (spin) component by construction.
-    r = quat_box_minus(command.command, cube.data.root_link_quat_w)
+    r = quat_box_minus(goal_judged, cube_q)
     err[t] = torch.linalg.vector_norm(r, dim=-1)
+    err_post[t] = torch.linalg.vector_norm(quat_box_minus(goal_now, cube_q), dim=-1)
+    # Cross-check against the command's own orientation_error, computed in
+    # _update_metrics against the same pre-update goal.
+    metric_gap[0] = max(
+      metric_gap[0],
+      float((err[t] - command.metrics["orientation_error"]).abs().max()),
+    )
     r_z[t] = r[:, 2].abs()
     r_xy[t] = torch.linalg.vector_norm(r[:, :2], dim=-1)
     ang_speed[t] = torch.linalg.vector_norm(cube.data.root_link_ang_vel_w, dim=-1)
@@ -280,15 +320,20 @@ def _rollout(cfg: EvalConfig) -> dict:
       actions = policy(obs)
       obs, _, dones, _ = wrapped.step(actions)
       t = i + 1
-      record(t)
+      record(t, dones.bool())
       done_buf[t] = dones.bool()
       fell_buf[t] = env.termination_manager.get_term("cube_fell")
       if (i + 1) % 200 == 0:
         print(f"       {i + 1}/{cfg.num_steps} steps")
 
   env.close()
+  print(
+    f"[INFO] judged-goal error vs command metric: max |diff| {metric_gap[0]:.2e} rad"
+  )
   return {
     "err": err.cpu().numpy(),
+    "err_post": err_post.cpu().numpy(),
+    "metric_gap": metric_gap[0],
     "r_z": r_z.cpu().numpy(),
     "r_xy": r_xy.cpu().numpy(),
     "ang_speed": ang_speed.cpu().numpy(),
@@ -301,6 +346,7 @@ def _rollout(cfg: EvalConfig) -> dict:
 
 def _analyze(trace: dict, cfg: EvalConfig) -> dict:
   err, r_z, r_xy = trace["err"], trace["r_z"], trace["r_xy"]
+  err_post = trace["err_post"]
   ang, done, fell = trace["ang_speed"], trace["done"], trace["fell"]
   cube_pos, joint_pos = trace["cube_pos"], trace["joint_pos"]
   n_rec, num_envs = err.shape
@@ -336,6 +382,19 @@ def _analyze(trace: dict, cfg: EvalConfig) -> dict:
           "final_err": float(seg_err[-1]),
           "best_step": i_best,
           "reached_threshold": bool((seg_err < cfg.success_threshold).any()),
+          # The pre-2026-09-11 measure, against the already-updated goal. Equal to
+          # the above whenever the drift is off; censored at the threshold when
+          # it is on. Kept so old and new results can be lined up.
+          # Separate entries into the threshold. Under the drift each entry is a
+          # goal reached (the goal is then kicked away), i.e. playground's
+          # consecutive-rotation count for this episode.
+          "n_threshold_entries": int(
+            np.sum(np.diff((seg_err < cfg.success_threshold).astype(np.int8), prepend=0) == 1)
+          ),
+          "min_err_post_update": float(err_post[window, e].min()),
+          "reached_threshold_post_update": bool(
+            (err_post[window, e] < cfg.success_threshold).any()
+          ),
           # Hold-based criteria. `reached_threshold` above is instantaneous and
           # counts a cube tumbling through the goal; these ask whether it was
           # actually brought to rest there.
@@ -417,6 +476,15 @@ def _analyze(trace: dict, cfg: EvalConfig) -> dict:
     "best_step": _spread(col("best_step")),
     "success_fraction": float(col("reached_threshold").mean()) if n_ep else float("nan"),
     "n_success": int(col("reached_threshold").sum()) if n_ep else 0,
+    "n_success_post_update": (
+      int(col("reached_threshold_post_update").sum()) if n_ep else 0
+    ),
+    "min_err_post_update_deg": _spread(col("min_err_post_update", _RAD2DEG)) if n_ep else {},
+    "judged_goal_metric_gap_rad": trace["metric_gap"],
+    "threshold_entries_total": int(col("n_threshold_entries").sum()) if n_ep else 0,
+    "threshold_entries_per_episode": (
+      float(col("n_threshold_entries").mean()) if n_ep else float("nan")
+    ),
     # Hold-based success. The instantaneous number above counts a cube that
     # tumbles through the goal region; these two require it to stay there.
     "held_fraction": float(col("held_threshold").mean()) if n_ep else float("nan"),
@@ -482,6 +550,7 @@ def _report(res: dict) -> None:
       "cube_half_size", "cube_friction_sliding", "cube_friction_torsional",
       "cube_condim", "cube_priority", "palm_euler",
       "goal_drift", "goal_resample_on_success", "orientation_fine",
+      "env_success_threshold",
     )
     if c.get(k) is not None
   ]
@@ -509,6 +578,14 @@ def _report(res: dict) -> None:
   print(
     f"  instantaneous (any single step)   {res['n_success']}/{res['n_episodes']}"
     f" = {100.0 * res['success_fraction']:.1f}%"
+  )
+  print(
+    f"    (vs the already-kicked goal, the pre-2026-09-11 measure: "
+    f"{res['n_success_post_update']}/{res['n_episodes']})"
+  )
+  print(
+    f"  threshold entries (goals reached)  {res['threshold_entries_total']} total,"
+    f" {res['threshold_entries_per_episode']:.3f} per episode"
   )
   print(
     f"  HELD ({c['hold_steps']} consecutive steps)        {res['n_held']}/{res['n_episodes']}"

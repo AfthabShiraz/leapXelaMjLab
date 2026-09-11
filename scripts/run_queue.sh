@@ -33,68 +33,80 @@ EVAL_DIR="$REPO/eval"
 # the one every earlier comparison used, which left run 21 scored against twice
 # the training budget -- see TRAINING_NOTES.md run 21.
 RUN14_MATCHED="$REPO/logs/rsl_rl/$EXPERIMENT/2026-08-29_16-11-45_reference-v3-eulerdamp/model_1500.pt"
+# Run 14 trained on to 2999 under the unchanged reward: the matched control for
+# any run warm-started from RUN14_MATCHED and trained to 3000.
+RUN14_FINAL="$REPO/logs/rsl_rl/$EXPERIMENT/2026-08-29_16-11-45_reference-v3-eulerdamp/model_2999.pt"
 
-# name | max_iters | seed | train overrides | eval overrides (must rebuild the SAME env)
+# Episodes per eval. One 32-env eval is noisy on its own: run 14's model_2999
+# scored 27.7 / 30.7 / 26.0 / 28.3 deg median best error at eval seeds 7-10, so
+# decisions need more episodes than the ~3 deg floor assumed. Results at any
+# count other than 32 carry an _n<count> tag so they never mix with the
+# historical 32-env files.
+EVAL_NUM_ENVS=128
+
+# name | max_iters | seed | train overrides | eval overrides (must rebuild the SAME env) | training-env eval overrides
 #
-# reference-seed7 (run 24) ANSWERED the variance question it was queued for:
-# it reproduces run 14 to within 1-2 deg of deterministic best error, so the
-# n=1 A/Bs in TRAINING_NOTES.md are readable after all -- but only at a
-# resolution of ~3 deg. orientation-fine (run 23) is abandoned at 650/1500: it
-# is 27 deg behind run 14 at matched iteration 600, so finishing it buys
-# nothing. Both are left out of the queue rather than deleted from the logs.
+# thresh-04 (EXPERIMENT 1) is done and REGRESSED: 72 deg vs run 14's 26 deg,
+# tip-over closure 20%. Its training error never left ~90 deg -- the step at
+# iteration 300-500 where every working run learns to tip the cube never came.
+# Runs 22 (fixed goal), 23 (orientation-fine) and 20 (success x20) fail at that
+# same step. Every from-scratch reward/goal edit has died there, so none of them
+# ever tested what they were for: whether a reward that pays for precision
+# moves the ~28 deg stall of a policy that already tips.
 #
-# OBSERVATION NOISE. Cube size (runs 29-30) is the fourth null, and the shape of
-# the nulls is now the finding: condim 6, friction and size each IMPROVED
-# tip-over closure and DEGRADED spin closure by comparable amounts, leaving the
-# total at 26-27 deg every time.
+# warm-inv-pin tests that directly. It warm-starts run 14's model_1500 (past
+# the step, tipping learned) and trains to 3000 with two changes:
+#   --orientation-kernel inverse   1/(err+0.1) x8.93: same pull as the linear
+#                                  term at 130 deg, 18x its pull at 26 deg, and
+#                                  still rising at the goal instead of flat below
+#                                  11.5 deg.
+#   --goal-drift/resample False    goal pinned for the episode. Under the drift
+#                                  a success kicks the goal ~160 deg away; with
+#                                  the inverse kernel that costs ~190 discounted
+#                                  reward against a +5 bonus (-94 even at a 2000
+#                                  bonus), so the policy would be trained never
+#                                  to cross the threshold. Pinned, the optimum is
+#                                  to arrive and stay.
+# Control: run 14's own model_2999 -- same start, same 1500 extra iterations,
+# old reward. Scored in the REFERENCE env (drift on, the real task) and in the
+# pinned env (HELD at 0.1 is only possible without the kick).
 #
-#                    spin down   tip down   total down   best
-#     run 14           93.5%      66.9%       80.1%      26.3 deg
-#     friction (26)    76.7%      73.1%       81.4%      25.1 deg
-#     cube-0325 (29)   91.9%      71.9%       77.6%      27.1 deg
+# Works if median best error in the reference env falls below ~20 deg (control
+# 27.7) AND at least one episode gets under 0.1 rad -- a first. Null if best
+# error stays within a few deg of the control with 0 successes: then an 18x
+# stronger pull with no kick does not move the stall, it is not a reward
+# equilibrium, and the next step is structural (tip-axis waypoint / skills).
+# Abort if training error climbs past ~70 deg for 200 iterations, action std
+# passes ~4, or the critic loss goes NaN.
 #
-# A capability limit does not rebalance. An equilibrium does, and there is a
-# mechanism for one: cube_orientation_tolerance is
-# tolerance(err, bounds=(0,0.2), margin=pi, sigmoid="linear"), i.e. LINEAR in
-# error from 180 deg down to 11.5 deg and flat below. Linear means the marginal
-# reward for closing one more degree is the same at 130 deg as at 30 deg, while
-# the marginal cost of closing it rises steeply near the goal. The policy stops
-# where those meet, and that point belongs to the reward, not the hand -- change
-# the contact model and it re-allocates between spin and tip without moving the
-# total. The bare hand works on this identical reward because a lower cost of
-# precision puts the same equilibrium inside 0.1 rad, where the 100-point
-# success bonus fires and bootstraps.
+# warm-inv-pin was STOPPED at iteration 1650 on that std criterion: action std
+# rose in a straight line, 2.81 -> 4.03 by 1637 (~0.009/iter), drops/ep 0.15 ->
+# ~0.5 -- the runaway runs 20 and 22 showed. rsl_rl's Gaussian is unbounded, so
+# the entropy bonus pushes log(std) up at a constant rate; run 14's reward held
+# it at 2.81 and the new reward does not. Its 1650 checkpoint was unchanged from
+# the control on the median (25.2 vs 25.4 deg), so it is left out of the queue
+# rather than resumed.
 #
-# These cells attack the other half: whether the policy can PERCEIVE the target
-# it is scored on. cube_ori observation noise is +/-0.1 on rotation-matrix
-# entries -- per component std 0.058, tilting a unit column by ~0.082 rad
-# ~= 4.7 deg -- against a success threshold of 0.1 rad = 5.7 deg. The
-# measurement noise is the same order as the target, so the gradient the policy
-# would need to servo inside the threshold is buried in its own observation
-# noise.
+# warm-inv-pin-ent1e3 is the same cell with --entropy-coef 0.001, which takes
+# away most of that constant push. Run 21 showed 1e-3 on its own does not move
+# the stall (std 0.39, same ~30 deg), so it should remove the runaway without
+# being the explanation for any improvement. Check std at iteration ~1600: if it
+# still climbs, the new reward itself pays for noise and the kernel needs
+# capping inside the threshold.
 #
-# The corroborating detail: eval already runs with corruption OFF (play=True
-# sets enable_corruption=False, env_cfg.py) and the policy STILL stops at
-# 26-27 deg with clean observations. That is the signature of a policy trained
-# blind, not one blinded at test time.
-#
-# --obs-noise-scale is playground's own obs_noise.level (default_config has
-# level=1.0 over scales joint_pos 0.05 / cube_pos 0.02 / cube_ori 0.1), which
-# this port hard-coded rather than exposed. 1.0 is exact parity, so this is
-# turning a knob the reference already has, not inventing a deviation.
-#
-# --cube-priority 0 restores run 14's contact model, so noise is the ONLY
-# difference from run 14 and each comparison is single-variable.
-#
-# Expect from a fix: best error falls below 26.3 deg by more than the ~3 deg
-# resolution floor, and held-success rises above 0 for the first time. If
-# zero noise still scores 0/32, perception is excluded, the equilibrium story
-# stands alone, and the reward SHAPE is the only lever left -- switch the
-# orientation term's sigmoid from "linear" to the convex _long_tail_tolerance
-# already sitting unused at rewards.py:49.
+# RESULT (2026-09-11 21:28): warm-inv-pin-ent1e3 WORKED. Reference env, 3 eval
+# seeds x ~128 episodes, against run 14's model_2999: 31% of episodes reach the
+# goal vs 1.8%, median best error 11-13 vs 28-30 deg, tip-over closure 90% vs
+# 72%, total 91% -- outside the 77.6-81.4% band every earlier cell stayed in.
+# (Only visible after the 2026-09-11 eval_policy.py fix: before it, drift-on
+# evals measured the already-kicked goal and could not record a success.)
+# Goals per episode were still rising at 2999 (0.25/0.30/0.34/0.40 at
+# 2500/2700/2900/2999), so warm-inv-pin-ent1e3-ext continues the SAME config
+# from its model_2999 to 4500. Same flags; --init-from gives it its own
+# directory and eval labels, and iteration numbering carries on from 2999.
+RUN_ENT1E3_FINAL="$REPO/logs/rsl_rl/$EXPERIMENT/2026-09-11_19-42-36_warm-inv-pin-ent1e3/model_2999.pt"
 QUEUE=(
-  "obsnoise-0|1500|42|--cube-priority 0 --obs-noise-scale 0.0|--cube-priority 0 --obs-noise-scale 0.0"
-  "obsnoise-half|1500|42|--cube-priority 0 --obs-noise-scale 0.5|--cube-priority 0 --obs-noise-scale 0.5"
+  "warm-inv-pin-ent1e3-ext|4500|42|--cube-priority 0 --orientation-kernel inverse --goal-drift False --goal-resample-on-success False --entropy-coef 0.001 --init-from $RUN_ENT1E3_FINAL|--cube-priority 0|--cube-priority 0 --goal-drift False --goal-resample-on-success False"
 )
 
 mkdir -p "$CONSOLE_DIR" "$EVAL_DIR"
@@ -116,20 +128,35 @@ final_ckpt() {   # $1 = run name, $2 = max iters
   ls -1 "$REPO/logs/rsl_rl/$EXPERIMENT"/*_"$1"/model_$(($2 - 1)).pt 2>/dev/null | head -1
 }
 
-score() {        # $1 = label, $2 = checkpoint, $3.. = env overrides
-  local label=$1 ckpt=$2; shift 2
+# $1 = label, $2 = checkpoint, $3 = REPORTING threshold (rad), $4.. = env
+# overrides. Threshold 0.1 keeps the historical ${label}_det.json name so every
+# earlier comparison still lines up; any other threshold gets a suffix.
+score() {
+  local label=$1 ckpt=$2 thr=$3; shift 3
+  [ "$EVAL_NUM_ENVS" = "32" ] || label="${label}_n${EVAL_NUM_ENVS}"
+  [ "$thr" = "0.1" ] || label="${label}_at$(printf '%03d' "$(awk "BEGIN{print int($thr*100+0.5)}")")"
   local json="$EVAL_DIR/${label}_det.json"
   if [ -f "$json" ]; then log "eval $label already scored — skipping"; return 0; fi
   log "evaluating $label — $(basename "$(dirname "$ckpt")")/$(basename "$ckpt")"
   "$UV" run python scripts/eval_policy.py "$ckpt" \
-      --num-envs 32 --num-steps 700 --seed 7 \
+      --num-envs "$EVAL_NUM_ENVS" --num-steps 700 --seed 7 --success-threshold "$thr" \
       --json-out "$json" "$@" >>"$EVAL_DIR/${label}_eval.txt" 2>&1
   log "eval $label finished rc=$?"
 }
+REPORT_THRESHOLDS=(0.1 0.4)
 
 log "=== queue start (pid $$) — ${#QUEUE[@]} runs ==="
 
-# Iteration-matched baseline, once. Cheap, and every comparison below needs it.
+# Baselines, once each. Cheap, and every comparison below needs them.
+PINNED=(--goal-drift False --goal-resample-on-success False)
+if [ -f "$RUN14_FINAL" ]; then
+  for thr in "${REPORT_THRESHOLDS[@]}"; do
+    score "run14_iter2999" "$RUN14_FINAL" "$thr" --cube-priority 0
+    score "run14_iter2999_pinned" "$RUN14_FINAL" "$thr" --cube-priority 0 "${PINNED[@]}"
+  done
+else
+  log "WARNING: $RUN14_FINAL missing — no control for warm-started runs"
+fi
 if [ -f "$RUN14_MATCHED" ]; then
   # --cube-priority 0 is REQUIRED, not cosmetic: run 14 predates the flag and
   # trained under element-wise-max mixing, while get_cube_spec now defaults to
@@ -137,13 +164,15 @@ if [ -f "$RUN14_MATCHED" ]; then
   # because it was scored on 2026-09-02 19:42, hours before the default
   # changed -- delete that file and rescore without this flag and the baseline
   # silently moves. See TRAINING_NOTES.md runs 22-24.
-  score "run14_iter1500" "$RUN14_MATCHED" --cube-priority 0
+  for thr in "${REPORT_THRESHOLDS[@]}"; do
+    score "run14_iter1500" "$RUN14_MATCHED" "$thr" --cube-priority 0
+  done
 else
   log "WARNING: $RUN14_MATCHED missing — no iteration-matched baseline"
 fi
 
 for entry in "${QUEUE[@]}"; do
-  IFS='|' read -r name iters seed train_args eval_args <<<"$entry"
+  IFS='|' read -r name iters seed train_args eval_args trainenv_args <<<"$entry"
 
   if [ -f "$STOP_FILE" ]; then log "STOP_SUPERVISOR present; standing down"; exit 0; fi
 
@@ -168,7 +197,15 @@ for entry in "${QUEUE[@]}"; do
     exit 1
   fi
   # shellcheck disable=SC2086
-  score "$name" "$ckpt" $eval_args
+  for thr in "${REPORT_THRESHOLDS[@]}"; do
+    score "$name" "$ckpt" "$thr" $eval_args
+  done
+  if [ -n "${trainenv_args:-}" ]; then
+    for thr in "${REPORT_THRESHOLDS[@]}"; do
+      # shellcheck disable=SC2086
+      score "${name}_trainenv" "$ckpt" "$thr" $trainenv_args
+    done
+  fi
 done
 
 rm -f "$STATE_FILE"

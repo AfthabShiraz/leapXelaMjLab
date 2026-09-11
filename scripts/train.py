@@ -88,6 +88,15 @@ class TrainConfig:
   # 3x the full range, so it is permanently saturated. See mdp.rewards.action_l2
   # and TRAINING_NOTES.md.
   action_l2: float | None = None
+  # Success threshold (rad), e.g. --success-threshold 0.4. None = the preset
+  # default (0.1 for the reference/baseline preset). Moves the goal command's
+  # trigger and the success_bonus reward together; unlike switching preset it
+  # leaves the orientation weight alone. See research/NEXT_EXPERIMENTS.md.
+  success_threshold: float | None = None
+  # Dense orientation reward shape, "linear" (playground) or "inverse"
+  # (1/(err+0.1)). None = linear. Pair "inverse" with a pinned goal; see the
+  # orientation_kernel note in tasks/reorient/config/env_cfg.py.
+  orientation_kernel: str | None = None
   # Logging / checkpointing.
   logger: Literal["wandb", "tensorboard"] | None = None
   save_interval: int | None = None
@@ -95,6 +104,20 @@ class TrainConfig:
   # checkpoint's own run directory, and max_iterations is read as the *total*
   # iteration target rather than a count of additional iterations.
   resume_from: str | None = None
+  # Warm start: load a checkpoint's weights, optimizer and iteration count, but
+  # train in a NEW run directory under whatever env/reward flags are given here.
+  # --resume-from cannot do this -- it continues in the checkpoint's own
+  # directory and would overwrite that run's later checkpoints. Iteration
+  # numbering carries on from the checkpoint (model_1500 -> model_1550, ...), so
+  # --max-iterations is again the total. Ignored when --resume-from is also set,
+  # which is what supervise_run.sh does after a reboot: once the new run has
+  # checkpoints of its own, resuming those is correct.
+  #
+  # Why it exists: every from-scratch reward/goal edit so far (runs 20, 22, 23,
+  # thresh-04) failed at the iteration-300-500 step where run 14 learns to tip
+  # the cube, so none of them ever tested terminal precision. Starting from a
+  # policy that already tips isolates the reward change from that failure.
+  init_from: str | None = None
   # WandB / run labeling.
   run_name: str | None = None
   wandb_project: str | None = None
@@ -123,6 +146,8 @@ def _apply_env_overrides(
     and cfg.goal_resample_on_success is None
     and cfg.orientation_fine is None
     and cfg.action_l2 is None
+    and cfg.success_threshold is None
+    and cfg.orientation_kernel is None
   ):
     return
 
@@ -166,6 +191,8 @@ def _apply_env_overrides(
     ("goal_resample_on_success", cfg.goal_resample_on_success),
     ("orientation_fine", cfg.orientation_fine),
     ("action_l2_weight", cfg.action_l2),
+    ("success_threshold", cfg.success_threshold),
+    ("orientation_kernel", cfg.orientation_kernel),
   ):
     if _val is None:
       continue
@@ -286,9 +313,19 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> dict[str, Any]:
 
   runner = runner_cls(env, agent_dict, str(log_dir), device=device)
   if cfg.resume_from is not None:
+    if cfg.init_from is not None:
+      print("[INFO] --init-from ignored: resuming this run's own checkpoint instead")
     print(f"[INFO] Resuming from checkpoint: {cfg.resume_from}")
     runner.load(cfg.resume_from)
     print(f"[INFO] Resumed at iteration {runner.current_learning_iteration}")
+  elif cfg.init_from is not None:
+    print(f"[INFO] Warm start from checkpoint: {cfg.init_from}")
+    runner.load(cfg.init_from)
+    print(f"[INFO] Warm-started at iteration {runner.current_learning_iteration}")
+    if rank == 0:
+      (log_dir / "params" / "init_from.txt").write_text(
+        f"{Path(cfg.init_from).resolve()}\n"
+      )
   add_wandb_tags(agent_cfg.wandb_tags)
   if rank == 0 and (
     cfg.obs_noise_scale is not None
@@ -302,6 +339,8 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> dict[str, Any]:
     or cfg.goal_resample_on_success is not None
     or cfg.orientation_fine is not None
     or cfg.action_l2 is not None
+    or cfg.success_threshold is not None
+    or cfg.orientation_kernel is not None
   ):
     try:
       import wandb
@@ -320,6 +359,9 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> dict[str, Any]:
             "goal_resample_on_success": cfg.goal_resample_on_success,
             "orientation_fine": cfg.orientation_fine,
             "action_l2": cfg.action_l2,
+            "success_threshold": cfg.success_threshold,
+            "orientation_kernel": cfg.orientation_kernel,
+            "init_from": cfg.init_from,
           },
           allow_val_change=True,
         )

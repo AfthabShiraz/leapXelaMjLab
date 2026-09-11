@@ -46,6 +46,28 @@ def cube_orientation_tolerance(
   return _linear_tolerance(err, bounds=bounds, margin=margin)
 
 
+def cube_orientation_inverse(
+  env: ManagerBasedRlEnv,
+  command_name: str = "goal_orientation",
+  object_name: str = "cube",
+  eps: float = 0.1,
+) -> torch.Tensor:
+  """Inverse-distance orientation reward ``1 / (err + eps)``.
+
+  The shape DeXtreme, Chen et al. (CoRL 2021) and DexReMoE use. Unlike the
+  linear tolerance -- constant marginal reward from 180 deg down to 11.5 deg,
+  then flat -- its marginal reward rises monotonically all the way to zero
+  error, so there is no dead band and the last degree is worth the most. It is
+  bounded by construction at ``1 / eps`` (10 at the default), so it needs no
+  separate cap. See research/verdicts/00-INTERIM-reward-kernel.md.
+  """
+  cube: Entity = env.scene[object_name]
+  goal = env.command_manager.get_command(command_name)
+  assert goal is not None
+  err = quat_error_magnitude(cube.data.root_link_quat_w, goal)
+  return 1.0 / (err + eps)
+
+
 def _long_tail_tolerance(
   x: torch.Tensor,
   margin: float,
