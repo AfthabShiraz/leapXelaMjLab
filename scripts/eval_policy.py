@@ -142,6 +142,16 @@ class EvalConfig:
   # threshold-relaxed checkpoint in the reference env (leave this unset) for
   # best error and HELD; set it only to reproduce the training env.
   env_success_threshold: float | None = None
+  episode_length_s: float | None = None
+  """Override the env's episode timeout, leaving DR/noise/physics untouched.
+
+  The task caps episodes at 50 s, so "goals reached per episode" is bounded by
+  the clock rather than by the policy once a goal costs less than an episode.
+  Set this large (e.g. 1e9) and episodes then end only on a drop or NaN, which
+  is how DeXtreme and the playground paper count consecutive successes. Use
+  --min-episode-steps 1 with it so short post-drop segments are not filtered
+  out of the goal and drop totals.
+  """
 
 
 def _build_env_cfg(cfg: EvalConfig):
@@ -220,6 +230,9 @@ def _rollout(cfg: EvalConfig) -> dict:
   assert isinstance(agent_cfg, RslRlOnPolicyRunnerCfg)
   env_cfg.scene.num_envs = cfg.num_envs
   env_cfg.seed = cfg.seed
+  if cfg.episode_length_s is not None:
+    env_cfg.episode_length_s = cfg.episode_length_s
+    print(f"[INFO] episode_length_s -> {cfg.episode_length_s}")
 
   env = ManagerBasedRlEnv(cfg=env_cfg, device=device)
   wrapped = RslRlVecEnvWrapper(

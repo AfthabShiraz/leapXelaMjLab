@@ -114,6 +114,12 @@ No touch/tactile observations are involved yet — this is the pre-flex baseline
 | 24 | `reference-seed7` | 1499 / 1500 | 103 min | Run 14, `seed` 42 → 7, sole change. **Reproduces run 14** — 34° vs 33°. Numbered after 22–23 to keep the "runs 22–23" pairing that `train.py` cites; it ran chronologically between them |
 | 25 | *contact priority* (no training) | — | — | Cube geom given `priority=1`. The cube's sliding friction was previously discarded at the fingertips (max mixing, 0.5 > 0.3), so runs 5–7 and `dr_cube_friction` varied nothing. **The grasp was not thereby stuck low** — `dr_fingertip_friction` held it at U(0.5, 1.0); see the 2026-09-06 correction. Contact friction is now the cube's, and palm angle and sliding friction are hyperparameters |
 | 26 | `friction08-prio1` | 1499 / 1500 | 103 min | Run 14 + `--cube-priority 1 --cube-friction-sliding 0.8`, the friction payoff test. **Null on the headline** — best error 26.3° → 25.1°, inside run 24's seed noise. But the error *reallocated*: tip closure 66.9 → 73.1%, spin closure 93.5 → 76.7% |
+| — | *eval measurement bug found* | — | — | `eval_policy.py` scored the post-drift-kick goal instead of the goal a step was judged by; `reached_threshold` was 0 by construction in every reference-env eval. Fixed; runs 14–30 and `obsnoise` need re-scoring — see the Interlude |
+| 31 | `thresh-04` | 1499 / 1500 | ~1h45m | Run 14 + `--success-threshold 0.4` (moves both the command and success-bonus thresholds), `--cube-priority 0`. **Strong regression** — best error 72.2° vs run 14's 26.3°, 0/32 at 0.1 rad; never reaches the iteration-300 breakthrough |
+| — | *breakthrough-curve analysis* | — | — | Every working run drops ~90° → 50–60° error between iteration 300–600; every from-scratch reward/goal edit (runs 20, 22, 23, 31) dies before reaching it. Motivates warm-starting past the breakthrough before changing the reward |
+| 32 | `warm-inv-pin` | 1650 / 3000 (stopped, std runaway) | — | First warm start: `--init-from` run 14 `model_1500` + `cube_orientation_inverse` kernel (weight 8.93) + goal pinned + `--cube-priority 0`, default entropy. Training error held, but action std rose 2.81 → 4.03 with no plateau; stopped on a pre-registered std > 4 rule |
+| 33 | `warm-inv-pin-ent1e3` | 2999 / 3000 | 1h46m | Run 32 + `--entropy-coef 0.001`, warm start from run 14 `model_1500`. **First policy to reach goals under drift** — 31.2% of episodes < 5.7°, 0.36 goals/episode vs control's 1.8% / 0.02; total closure 91.1%, clear of the 77.6–81.4% equilibrium band |
+| 34 | `warm-inv-pin-ent1e3-ext` | 4499 / 4500 | 1h43m | `--init-from` run 33 `model_2999`, same config. Still climbing — 57.3% of episodes < 5.7° and 0.77 goals/episode by @4499, median best error down to 5.6–5.7°, no plateau. Continuing to iteration 9000 remotely |
 
 ---
 
@@ -1455,7 +1461,7 @@ soft-contact compliance. The gap figure is approximate — it takes each pad's s
 half-extent and ignores per-box orientation — but a 6 mm overlap is far too large for
 orientation to flip the sign.
 
-### Still open (updated 2026-09-06, revised after runs 29–30 and the parity audit)
+### Still open (updated 2026-09-11, revised after the eval measurement-bug fix and runs 31–34)
 
 - **The contact and actuation model is closed. Five nulls.** `condim 6` (run 19), friction
   (run 26), action saturation (runs 27–28), cube size (runs 29–30), and the rolling-resistance
@@ -1483,6 +1489,18 @@ orientation to flip the sign.
   the policy stops where those meet, and that point belongs to the reward. It also explains
   why the bare hand succeeds on the identical reward: a lower cost of precision puts the same
   equilibrium inside 0.1 rad, where the success bonus fires and bootstraps.
+- **Confirmed, not just predicted (2026-09-11).** Run 33 paired a reward that pays for
+  precision (`cube_orientation_inverse`, warm-started past the iteration-300 breakthrough) with
+  the same task, and total closure moved to 91.1%, clear of the 77.6–81.4% band every
+  cost-of-precision intervention stayed inside. That is the falsifiable prediction this account
+  made, and it held. See "## 33. `warm-inv-pin-ent1e3` — the first policy that reaches goals".
+- **Cold-start reward edits die before they can test anything.** Lining up training curves,
+  every run that works breaks through from ~90° to 50–60° error between iteration 300 and 600;
+  runs 20, 22, 23 and 31 all die before that point and are not evidence about terminal
+  precision — they never got that far. See "## The iteration-300 breakthrough, and why
+  cold-start reward edits keep missing it (2026-09-11)". Any future reward-shape or
+  goal-machinery change should warm-start from a post-breakthrough checkpoint (`--init-from`)
+  rather than train from scratch.
 - **In flight: can the policy PERCEIVE the threshold it is scored on?** `obsnoise-0` and
   `obsnoise-half` (`--obs-noise-scale 0.0 / 0.5`, `--cube-priority 0`), queued 2026-09-06
   15:03. `cube_ori` observation noise is ±0.1 on rotation-matrix entries — per component
@@ -1495,11 +1513,21 @@ orientation to flip the sign.
   `obs_noise_scale` is playground's own `obs_noise.level` (its `default_config` has
   `level=1.0` over the three scales), which this port hard-coded rather than exposed — so
   1.0 is exact parity and this only turns a knob the reference already has.
+- **Update 2026-09-11: this eval has since completed.** Like every other historical drift-on
+  success count in this file, its result predates the eval measurement-bug fix (see
+  "## Interlude — the eval measurement bug, found 2026-09-11") and has not been re-scored
+  under it.
 - **Pre-registered follow-up if noise is null: the reward SHAPE.** Switch the orientation
   term's sigmoid from `"linear"` to the convex `_long_tail_tolerance` already sitting unused
   at `rewards.py:49`, so marginal reward *increases* as the goal is approached. This attacks
   the equilibrium directly, unlike run 23's `orientation_fine`, which bolted a second term
   beside the linear one and left it setting the equilibrium.
+- **Executed, 2026-09-11 — and it needed more than the kernel swap.** Runs 32–34 tried exactly
+  this move (a different convex kernel, `cube_orientation_inverse`, not `_long_tail_tolerance`,
+  but the same idea: marginal reward rising toward the goal). The kernel swap alone (run 32)
+  produced an action-std runaway with no verdict; it only worked once paired with a lower
+  entropy coefficient *and* a warm start past the iteration-300 breakthrough (run 33). A
+  cold-start attempt at this would most likely have died the same way runs 22, 23 and 31 did.
 - **The finger-pad rolling claim is still untested.** The probe answered the palm (null) but
   cannot reach the curved phalanges. Needs a rig that keeps the curvature and varies only the
   surface — the real finger against the same finger with its pads replaced by a capsule.
@@ -1507,6 +1535,18 @@ orientation to flip the sign.
   best error 26.3 → 22.4°, just past the ~3° floor, while its 1e-3 sibling moved 3.5° the
   other way. One seed cannot tell those apart. Runs 29–30 produced the same non-monotone
   ±2° straddle, which reinforces the point.
+- **Attribution inside runs 32–34 is untested.** The reward kernel, the pinned goal and the
+  entropy cut all changed at once, in a single training seed. Which of the three is necessary —
+  or whether all three are — is open. The training task in runs 32–34 is also goal-pinned, not
+  the reference task, though every number quoted for them is measured in the reference env with
+  drift on.
+- **In flight: run 34's continuation to iteration 9000**, running on a rented A100 (see the
+  infrastructure note under "## 34. `warm-inv-pin-ent1e3-ext` — continuation, still climbing").
+  Not plateaued as of iteration 4499 — 57.3% of episodes reach < 5.7°, 0.77 goals/episode.
+  Whether it plateaus, and where, is open.
+- **Use ≥3 eval seeds from here on.** The same checkpoint at 128 envs, re-scored three times,
+  spans median best error 25.4–28.6° from GPU non-determinism alone — see the Interlude. A
+  single-seed eval at n=128 is not enough to resolve a <3° effect.
 - **Any sweep needs a resolution floor.** Run 24 puts run-to-run spread at ~1–2° of
   deterministic best error, so **a cell that moves best-error by less than ~3° has shown
   nothing at n=1.**
@@ -1942,3 +1982,245 @@ The symptom was "cube did not settle in contact with the shell", not an obvious 
 The script blanks any driven cell with `|slip| > 0.6`, printing `--` instead of a torque, so
 a later reader cannot mistake a sliding or tumbling cell for a rolling resistance. Raw data
 in `eval/rolling/{palm,fingers,sensors}.json`.
+
+---
+
+## Interlude — the eval measurement bug, found 2026-09-11
+
+mjlab's `CommandTerm.compute()` calls `_update_metrics()` (which tests success against the
+current goal) and then `_update_command()` (which applies the MJX goal-drift kick) in the
+*same* call. `scripts/eval_policy.py` read `command.command` *after* `step()` returned — i.e.
+the goal already kicked to its post-success value. So in every drift-on (reference-env) eval, a
+step that crossed the 0.1 rad threshold was scored against the goal it had just been kicked to,
+not the one it actually closed on, and was recorded as 10–50° of error instead of a success.
+
+**Consequence: `reached_threshold` was 0 by construction in every reference-env eval ever run,
+and the recorded minimum error piled up just above the 5.7° threshold.** This is the exact
+signature `research/NEXT_EXPERIMENTS.md` reported as its headline finding: "across seven
+independent runs... the best episode lands at 5.94–6.39°, and the success threshold is 5.73°" —
+that table is an artifact of this bug, not a property of the policy. Pinned-goal evals were
+never affected; there is no kick to mistime when the goal never moves.
+
+**Fixed** by scoring against the goal the step was actually judged by — the previous step's
+post-update goal, or the freshly sampled goal on a reset step — cross-checked against the
+command's own `orientation_error` metric (max discrepancy 9.5e-7 rad once time-aligned). The
+old, mistimed quantity is kept per episode as `min_err_post_update` /
+`reached_threshold_post_update`, so old-style numbers stay reproducible. A new
+`threshold_entries_total` / `threshold_entries_per_episode` counts *separate* entries into the
+threshold — goals reached per episode, the quantity runs 32–34 below report as "goals/episode".
+
+Corrected baselines, 128 envs × 700 steps, seed 7, `--cube-priority 0`, reference env: run 14
+`model_2999` reads **2/128** real successes where the old, mistimed measure said 0; run 14
+`model_1500` reads **0/129**.
+
+**Every historical drift-on success count in this file is censored and must be re-scored before
+being quoted** — runs 14 through 30, `obsnoise-0` / `obsnoise-half`, and every "0/32 everywhere"
+line written above this section.
+
+One more thing this surfaced: **eval noise is larger than previously assumed.** The same
+checkpoint at 128 envs, re-scored three times, gave median best error 25.4° / 26.8° / 28.6° —
+GPU non-determinism alone, no config difference. Treat ±2° as noise even at n=128, and prefer 3
+eval seeds (~390 episodes) over 1 — every eval below this point uses 3 seeds for that reason.
+
+---
+
+## 31. `thresh-04` — Experiment 1 from research/NEXT_EXPERIMENTS.md, answered: no (strong regression)
+
+Run 14 + `--success-threshold 0.4` + `--cube-priority 0`, seed 42, 8192 envs, 1499/1500
+iterations, ~1h45m, started 2026-09-11 15:59. The new `--success-threshold` flag moves *both*
+the command's `orientation_success_threshold` and the success-bonus reward threshold together
+(verified by config diff: only those two values move, orientation weight stays 5.0).
+
+Deterministic eval, 32 envs, seed 7, reference env:
+
+| | best error | succ @ 0.1 rad | held @ 0.4 rad | spin ↓ | tip ↓ |
+| --- | --- | --- | --- | --- | --- |
+| 14 @1500 | 26.3° | 0/32 | 11/32 | **93.5%** | 66.9% |
+| 31 `thresh-04` @1499 | **72.2°** | 0/32 | 5/32 | 82.3% | 20.1% |
+
+**Training curve identical to run 14 until iteration ~300, then they split.** Run 14 breaks
+through to ~56° by iteration 600; `thresh-04` sits at ~90–95° for all 1500 iterations. It never
+gets the breakthrough at all.
+
+Mechanism (inferred, not directly tested): the threshold also sets where the goal-drift kick
+fires. At 0.4 rad the kick fires at 22.9° — exactly the region run 14 passes *through* while
+learning to tip the cube — so the policy learns to stay away from it instead. The handoff's
+experiment therefore tested "move the kick to 22.9°", not "pay the policy for getting close".
+And the handoff's own success criterion could not have discriminated the two anyway: run 14
+*already* scores HELD 11/32 and SETTLED 11/32 at 0.4 rad, before this run changes anything.
+
+---
+
+## The iteration-300 breakthrough, and why cold-start reward edits keep missing it (2026-09-11)
+
+Lining up training-time `orientation_error` (logged every 100 iterations) across every run that
+has been scored shows the same shape wherever the policy works at all: **flat around 90° until
+iteration ~300, then down to 50–60° by iteration 500–600** — the point at which tip-over gets
+learned. Run 14, `reference-seed7`, `obsnoise-0` and `cube-0300` all do it. Physical
+interventions (friction, condim, cube size, action penalty) never block it — they change where
+the policy settles *after* the breakthrough, not whether the breakthrough happens.
+
+Every from-scratch reward or goal edit has instead failed to reach it:
+
+| run | curve |
+| --- | --- |
+| 20 `success-x20` | gets halfway, ~65°, then action std diverges to 5.95 |
+| 22 `fixed-goal` | ~90° for the whole run; action std runs away to 4.3 |
+| 23 `orientation-fine` | 84° at iteration 600 |
+| 31 `thresh-04` | ~90–95° for all 1500 iterations |
+
+The common factor: all four change the reward *near the goal* — a region a pre-breakthrough
+policy only visits by luck. So runs 20, 22, 23 and 31 died upstream of the thing each was built
+to test, and **none of them is evidence about terminal precision.** Nothing in this project had
+been warm-started from a trained checkpoint before 2026-09-11 — every one of the above trained
+its new reward from scratch, fighting the same 300-iteration climb the edit was supposed to be
+tested past.
+
+This is what motivates runs 32–34 below: start from a checkpoint that has already made the
+breakthrough, and only then change the reward.
+
+One more calculation worth recording here, since it bears directly on
+`research/NEXT_EXPERIMENTS.md` Experiment 2. Using a discounted (γ=0.99) value model, calibrated
+against the previously measured ≈−12 net reward per success under the drift kick, the net value
+of *one* success works out to:
+
+| kernel | bonus weight 100 | bonus weight 2000 |
+| --- | --- | --- |
+| linear | −11.4 | +83.6 |
+| inverse (weight 8.93) | −189 | −94 |
+
+Pairing the inverse kernel with the drift kick *on* — which is what Experiment 2 specifies —
+would train the policy to approach the goal and never cross it, worse than the linear kernel at
+the same bonus weight. Experiment 2's `cap=10.0` is also a no-op: `1/(d+0.1)` never exceeds 10
+over the valid error range. Runs 32–34 pin the goal during training instead, which sidesteps
+this trap entirely.
+
+---
+
+## 32. `warm-inv-pin` — stopped at 1650/3000, action-std runaway
+
+First warm start run in this project. `--init-from` run 14 `model_1500`, target 3000
+iterations, with `--orientation-kernel inverse` (new reward `cube_orientation_inverse` =
+1/(err+eps), eps 0.1, weight 8.93 = 1.79× the linear weight, chosen so marginal reward matches
+the linear kernel exactly at 130°), goal pinned (`--goal-drift False
+--goal-resample-on-success False`), `--cube-priority 0`, `entropy_coef` left at its default
+0.01.
+
+The warm start itself worked — no collapse, training error held at run 14's ~45–48° level. But
+action std rose linearly at ~0.009/iteration, 2.81 → 4.03 by iteration 1637, with no sign of
+levelling off, and drops rose 0.15 → ~0.5 per episode. Stopped on a pre-registered std > 4
+criterion. (For scale: run 22 rose at ~0.002/iteration; run 20 reached 5.95 before it was judged
+harmful.)
+
+At iteration 1650, 128 envs: reference env median best error 25.2° vs control's 25.4°, 0/129
+successes; pinned env 11/129 instantaneous successes vs control's 6/128. Spin 87.5% / tip 75.5%
+/ total 80.3% — another rebalance inside the old 77.6–81.4% band, not outside it.
+
+**Not a verdict on the kernel** — only 150 iterations ran, with std actively running away for
+all of them. Cause: rsl_rl's `GaussianDistribution` is unbounded (see the noise-floor diagnosis
+earlier in this file), so the entropy bonus pushes `log(std)` up at a roughly constant rate
+unless the reward's own gradient opposes it. Run 14's reward held std at 2.81; this reward does
+not.
+
+## 33. `warm-inv-pin-ent1e3` — the first policy that reaches goals
+
+Run 32's config + `--entropy-coef 0.001`. Warm start from run 14 `model_1500`, iterations
+1500→2999, 8192 envs, seed 42, 1h46m, 2026-09-11 19:42–21:28.
+
+The entropy fix worked: action std drifted *down*, 2.80 → 1.91, instead of up. Drops stayed
+0.10–0.35 per episode throughout. Run 21 already showed `entropy_coef` 1e-3 alone does not move
+the stall (error and success rate unmoved there), so entropy alone is an unlikely explanation
+for what follows.
+
+Final @2999, reference env, 3 eval seeds × ~128 episodes each, against control run 14
+`model_2999` (same start, same 1500 extra iterations, old linear reward):
+
+| | run 33 @2999 | control (run 14 @2999) |
+| --- | --- | --- |
+| episodes reaching < 5.7° | **121/388 = 31.2%** | 7/385 = 1.8% |
+| goals per 35 s episode | **0.36** | 0.02 |
+| median best error (3 seeds) | 10.8° / 12.3° / 12.6° | 28.6° / 29.8° / 28.2° |
+| spin / tip / total closure, seed 7 | 92.8% / 90.0% / **91.1%** | 83.9% / 72.4% / 76.5% |
+| pinned-goal: reach / HELD @ 0.1 rad | 44/128 / 36/128 | — / 1/128 |
+| pinned-goal p10 best error | 0.6° | — |
+
+**Total closure leaves the 77.6–81.4% band that every one of the seven nulls stayed
+inside.** That is the pre-registered, worth-of-precision-vs-cost-of-precision
+prediction in `research/verdicts/00-INTERIM-reward-kernel.md`, and it held. This is a
+worth-of-precision intervention, and it behaved unlike every cost-of-precision intervention
+tried so far.
+
+Trajectory, reference env, seed 7 — not plateaued:
+
+| iteration | 1500 | 2200 | 2300 | 2500 | 2700 | 2900 | 2999 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| successes | 0/129 | 11 | 17 | 31 | 35 | 39 | 43/130 |
+| best error | 29.2° | 19.4° | 19.0° | 15.9° | 14.2° | 14.0° | **10.8°** |
+
+Caveat: three things changed at once — kernel, goal pinning, entropy — in a
+single training seed, so attribution among them is untested (see Still open, below). Also, the
+training task is no longer the reference task (the goal is pinned during training), though
+every number above is measured in the reference env with drift on.
+
+## 34. `warm-inv-pin-ent1e3-ext` — continuation, still climbing
+
+Same config, `--init-from` run 33's `model_2999`, iterations 2999→4499, 2026-09-11 21:34–23:17.
+
+Reference env, 3 eval seeds × ~130 episodes each:
+
+| checkpoint | episodes < 5.7° | goals/episode | median best error |
+| --- | --- | --- | --- |
+| run 14 @2999 (control) | 1.8% | 0.02 | 28–30° |
+| run 33 @2999 | 31.2% | 0.36 | 11–13° |
+| run 34 @3450 | 42.5% | 0.51 | 7–10° |
+| run 34 @4499 | **57.3%** | **0.77** | **5.6–5.7°** |
+
+The median episode now reaches the success threshold. Still no plateau.
+
+Training-side at iteration 4499: training error ~22.6°, action std 1.55, ~263 steps per episode
+spent inside 5.7° (up from ~10 at the start of run 33), drops 0.25/episode.
+
+A continuation to iteration 9000 is running on a rented A100 — see the infrastructure note
+below.
+
+---
+
+## What changed in the code (2026-09-11)
+
+- `mdp/rewards.py` — new `cube_orientation_inverse(env, command_name, object_name, eps=0.1)` =
+  1/(err+eps). Bounded by construction at 1/eps.
+- `config/env_cfg.py` — new `orientation_kernel` argument (`"linear"` default / `"inverse"`),
+  new `success_threshold` argument (overrides *both* threshold sites together; `None` keeps the
+  preset value). Both recorded in `build_kwargs`. Module constant `_INVERSE_WEIGHT_PER_LINEAR`
+  derives the 1.79× weight so marginal reward matches the linear kernel at 130°.
+- `scripts/train.py` — new `--orientation-kernel`, `--success-threshold`, and `--init-from`.
+  `--init-from` loads a checkpoint's weights/optimizer/iteration count but trains in a *new* run
+  directory, unlike `--resume-from`, which continues in the checkpoint's own directory and would
+  overwrite that run's later checkpoints. `--resume-from` wins if both are given, which is what
+  `supervise_run.sh` does after a reboot. The source checkpoint is recorded in
+  `params/init_from.txt`.
+- `scripts/eval_policy.py` — the judged-goal fix described in the Interlude above, plus
+  `--env-success-threshold` (rebuilds the env's threshold; the pre-existing `--success-threshold`
+  is reporting-only and does *not* change the env — the handoff's scoring commands assumed
+  otherwise).
+- `scripts/render.py` — `--overlay` (default on) stamps orientation error, goals reached and
+  elapsed time on each frame; the console also logs the time of each goal reached.
+- `scripts/run_queue.sh` — evals now run at 128 envs (files tagged `_n128`) and at both 0.1 and
+  0.4 rad; added pinned-goal baselines.
+
+## Videos (2026-09-11)
+
+`eval/videos/warm-inv-pin-ent1e3_it2999_seed{1..7}.mp4`, 60 s each, reference env,
+`--cube-priority 0`. Seed 4 reaches two goals (12.1 s and 28.5 s), seed 6 reaches one (5.1 s),
+the other five reach none — consistent with the ~31% episode success rate at that checkpoint.
+Renders run with `play=True`, so no observation noise or domain randomization.
+
+## Infrastructure note (2026-09-11)
+
+An A100 80GB PCIe was rented via Brev (org `AfthabS`; the other org is out of credits) to
+continue run 34 to iteration 9000. Measured 2.23–2.33 s/iteration against the local GB10's
+4.06 s median at 8192 envs — only 1.8× faster despite the class difference. Remote torch had to
+be downgraded to 2.11.0+cu128 because the instance driver is 570.195 (CUDA 12.8) and the locked
+torch 2.13 is a cu130 build that cannot see the GPU; warp and mjlab stay at the locked versions,
+and every remote checkpoint is scored locally so the numbers stay comparable. Remote user is
+`shadeform`. Use `uv run --no-sync` remotely — a plain `uv sync` reverts the torch downgrade.
