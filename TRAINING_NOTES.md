@@ -2240,3 +2240,49 @@ be downgraded to 2.11.0+cu128 because the instance driver is 570.195 (CUDA 12.8)
 torch 2.13 is a cu130 build that cannot see the GPU; warp and mjlab stay at the locked versions,
 and every remote checkpoint is scored locally so the numbers stay comparable. Remote user is
 `shadeform`. Use `uv run --no-sync` remotely — a plain `uv sync` reverts the torch downgrade.
+
+---
+
+## 35–36. `abl-nokernel` / `abl-nopin` — which of run 33's three changes did the work
+
+Run 33 changed three things at once against a warm start from run 14's `model_1500` — the
+inverse orientation kernel, the pinned goal, and `entropy_coef` 1e-3 — so the result was
+unattributed. Leave-one-out rather than one-at-a-time, because the question is which change is
+*necessary*, and run 32 already supplies the third cell. Every cell is a warm start from
+`model_1500` to iteration 3000, so all four are directly comparable.
+
+Deterministic eval, 3 seeds × ~130 episodes each, reference env (drift on), `--cube-priority 0`:
+
+| cell | kernel | goal | entropy | reached < 5.7° | goals/ep | median best error |
+| --- | --- | --- | --- | --- | --- | --- |
+| control, run 14 @2999 | linear | drift | 1e-2 | 7/385 = 1.8% | 0.02 | 28.6 / 29.8 / 28.2° |
+| 35 `abl-nokernel` | linear | **pinned** | 1e-3 | 34/392 = 8.7% | 0.10 | 25.5 / 28.0 / 23.5° |
+| 36 `abl-nopin` | **inverse** | drift | 1e-3 | 48/390 = 12.3% | 0.14 | **12.1 / 12.5 / 15.3°** |
+| 33 full recipe | **inverse** | **pinned** | 1e-3 | **121/388 = 31.2%** | 0.36 | 10.8 / 12.3 / 12.6° |
+| 32 `warm-inv-pin` | inverse | pinned | 1e-2 | — | — | std runaway, stopped at 1650 |
+
+**The kernel and the pinning do different jobs, and neither alone is enough.**
+
+*The kernel closes the distance.* `abl-nopin` has no pinning and still drags median best error
+from 28° to 12–15°, which is essentially the full recipe's 11–13°. Nearly all of the approach
+improvement is the kernel's near-goal gradient.
+
+*The pinned goal converts proximity into crossings.* At the same error, `abl-nopin` converts
+12.3% of episodes against the full recipe's 31.2%. Getting close and getting there are separate
+problems, and only the goal machinery fixes the second.
+
+This confirms the kick arithmetic recorded above: under the drift a success kicks the goal
+~160° away, costing ~190 discounted reward against a +5 bonus with the inverse kernel, so the
+policy is trained to approach the threshold and stop short. "Low error, few crossings" is
+exactly the signature that predicts. **The prediction was pre-registered in `run_queue.sh`
+before either run started, and held on both cells** — had `abl-nopin` matched run 33, the
+arithmetic would have been wrong and the pinning droppable.
+
+`abl-nokernel`'s training curve says the same thing from the other side: it stops descending
+around iteration 1700 and sits at 43–50° for 1200 iterations, where run 33 was through 30° and
+still falling.
+
+**Consequences.** Do not drop the pinning as a simplification. Do not run the inverse kernel
+with the drift on — which is what `research/NEXT_EXPERIMENTS.md` Experiment 2 specifies, and
+run 36 is now the measured reason not to. Attribution of the entropy setting rests on run 32
+(std runaway without it) plus run 21 (1e-3 alone moves nothing), not on a dedicated cell.
