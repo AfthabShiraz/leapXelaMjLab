@@ -126,11 +126,84 @@ def get_hand_xml(finger_tip_type: str = "Box") -> Path:
   return xml
 
 
+# Joint limits of the BARE LEAP hand, read per joint name from the vendored
+# ``assets/leap_plain/leap_rh_mjx.xml`` (mujoco_playground's model, whose meshes
+# come from mujoco_menagerie). ``ctrlrange == jnt_range`` throughout that model,
+# so one table drives both.
+#
+# Why this is here (2026-09-12). The generated LeapXELA MJCF bakes in the
+# ``leapXela.sim`` section of ``joint_config.json`` instead, and those ranges are
+# materially tighter -- most sharply the lateral-splay ``rot`` joints at +/-0.349
+# rad (+/-20 deg) against LEAP's +/-1.047 (+/-60 deg), a 3x reduction. Lateral
+# splay is the motion that rotates a held cube about a HORIZONTAL axis, which is
+# the component this task has never been able to steer, so the restriction is a
+# live suspect rather than a detail. It has never been varied.
+#
+# Taken from the MJCF and NOT from ``joint_config.json``, deliberately: the
+# config's thumb rows do not map onto the model's thumb joints one-for-one
+# (its ``thumb.axl`` row is the model's ``th_mcp``, and its ``thumb.mcp`` row
+# appears nowhere), so keying off the config silently mis-assigns two joints.
+# The config is also partly malformed -- ``leapXela.sim.fingers.rot`` is written
+# ``{"lower": 0.349, "upper": -0.349}``, lower ABOVE upper, as are
+# ``fingers.mcp`` and ``thumb.mcp``. The magnitudes still agree with the
+# ``leapXela.hardware`` section (pi +/- 0.349 for rot), so +/-20 deg is the
+# intended figure -- the slip is in the order, not the value.
+_LEAP_JOINT_RANGE: dict[str, tuple[float, float]] = {
+  "if_mcp": (-0.314, 2.23),
+  "if_rot": (-1.047, 1.047),
+  "if_pip": (-0.506, 1.885),
+  "if_dip": (-0.366, 2.042),
+  "mf_mcp": (-0.314, 2.23),
+  "mf_rot": (-1.047, 1.047),
+  "mf_pip": (-0.506, 1.885),
+  "mf_dip": (-0.366, 2.042),
+  "rf_mcp": (-0.314, 2.23),
+  "rf_rot": (-1.047, 1.047),
+  "rf_pip": (-0.506, 1.885),
+  "rf_dip": (-0.366, 2.042),
+  "th_cmc": (-0.349, 2.094),
+  "th_axl": (-0.349, 2.094),
+  "th_mcp": (-0.47, 2.443),
+  "th_ipl": (-1.34, 1.88),
+}
+
+
+def _apply_leap_joint_limits(spec: mujoco.MjSpec) -> None:
+  """Widen the hand's joint (and actuator ctrl) ranges to the bare-LEAP values.
+
+  Both are set: the actuators are XML position actuators whose ``ctrlrange``
+  mirrors ``jnt_range`` in the generated file, and leaving ctrlrange alone would
+  clamp the command before the joint limit ever mattered -- the same class of
+  miss as the 2026-08-28 bug, where limits were written to a ``<default>`` block
+  that MjSpec had already resolved and ``ctrlrange`` was never touched at all.
+  """
+  seen = set()
+  for joint in spec.joints:
+    rng = _LEAP_JOINT_RANGE.get(joint.name)
+    if rng is None:
+      raise ValueError(f"no bare-LEAP range for joint {joint.name!r}")
+    joint.range = list(rng)
+    seen.add(joint.name)
+  missing = set(_LEAP_JOINT_RANGE) - seen
+  if missing:
+    raise ValueError(f"bare-LEAP ranges never applied to: {sorted(missing)}")
+  for act in spec.actuators:
+    rng = _LEAP_JOINT_RANGE.get(act.target)
+    if rng is not None:
+      act.ctrlrange = list(rng)
+
+
 def get_spec(
   finger_tip_type: str = "Box",
   palm_euler: tuple[float, float, float] | None = None,
+  leap_joint_limits: bool = False,
 ) -> mujoco.MjSpec:
-  """``palm_euler=None`` keeps whatever the generated MJCF already has baked in."""
+  """``palm_euler=None`` keeps whatever the generated MJCF already has baked in.
+
+  ``leap_joint_limits=True`` replaces the baked LeapXELA ranges with the bare
+  LEAP ones -- see ``_LEAP_JOINT_RANGE``. Pads, meshes, inertia and actuator
+  gains are untouched, so it isolates the joint limits from the tactile skin.
+  """
   xml_path = get_hand_xml(finger_tip_type)
   spec = mujoco.MjSpec.from_file(str(xml_path))
   spec.assets = _load_meshdir_assets(LEAPXELA_MODEL_DIR / "assets")
@@ -138,17 +211,22 @@ def get_spec(
     palm = spec.body("palm")
     palm.pos = list(PALM_POS)
     palm.quat = palm_euler_to_quat(palm_euler)
+  if leap_joint_limits:
+    _apply_leap_joint_limits(spec)
   return spec
 
 
 def get_leap_xela_cfg(
   finger_tip_type: str = "Box",
   palm_euler: tuple[float, float, float] | None = None,
+  leap_joint_limits: bool = False,
 ) -> EntityCfg:
   """Fixed-base LEAP-XELA hand using XML position actuators."""
 
   def _spec_fn() -> mujoco.MjSpec:
-    return get_spec(finger_tip_type, palm_euler=palm_euler)
+    return get_spec(
+      finger_tip_type, palm_euler=palm_euler, leap_joint_limits=leap_joint_limits
+    )
 
   return EntityCfg(
     spec_fn=_spec_fn,

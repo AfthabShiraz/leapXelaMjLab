@@ -2386,9 +2386,25 @@ lives; everything past 8000 was spent.
 | --- | --- | --- |
 | HELD @ 0.1 rad (10 consecutive steps) | 28.1% | **73.1%** (98/134) |
 | SETTLED (\|w\| < 0.2 rad/s) | 28.9% | **73.9%** |
-| goals/episode | 3.16 | **5.61** |
+| threshold entries/episode | 3.16 | **5.61** |
 | median best error | 11.79° | **0.73°** |
 | p10 best error | 0.62° | **0.15°** |
+
+**Corrected 2026-09-12.** The third row was labelled "goals/episode".
+
+> | goals/episode | 3.16 | **5.61** |
+
+It is `threshold_entries_per_episode`, and with the goal pinned those are **re-entries into the
+0.1 rad ball around one goal that never moves** — not goals achieved. A pinned episode achieves
+one goal and then holds it. The render overlay counts the same quantity the same way
+(`scripts/render.py:329` increments on a rising edge of `metrics["success"]`), which is what
+makes `eval/videos/mainline_it8000_pinned_seed1.mp4` read "goals reached 3" at t=11.2 s, 11.4 s
+and 11.5 s — three crossings 300 ms apart as the cube arrives at ~0.8 rad/s, overshoots the line
+twice and then damps inside, with no further crossing in the remaining 38.5 s.
+
+The **drift-on** figures quoted everywhere else in this file are not affected: a crossing there
+fires the kick, which integrates the goal by ~30° on that same step, so the error leaves the ball
+immediately and chatter cannot inflate the count. Reference-env "goals/episode" means goals.
 
 A median best error of 0.73° with 73% of episodes *holding* the goal for half a second is not a
 policy that lacks precision. Under the drift the same checkpoint reaches 5.29° and holds

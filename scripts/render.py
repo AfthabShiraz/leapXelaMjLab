@@ -81,6 +81,18 @@ class RenderConfig:
   """
   cube_friction_sliding: float | None = None
   """Rebuild the env with this cube sliding friction. Only bites at priority 1."""
+  goal_drift: bool | None = None
+  """Rebuild the env with the MJX goal drift on/off.
+
+  The reference task leaves it on: a success kicks the goal ~160 deg away
+  (``commands.py:195-207``), so a policy can never be seen *holding* a goal in a
+  reference-env render -- the goal leaves the instant it is reached. Pass
+  ``--no-goal-drift --no-goal-resample-on-success`` to pin the goal for the whole
+  episode, which is the env runs 33-37 were TRAINED in and the one the
+  ``_trainenv`` evals score. Mirrors the same two flags on ``eval_policy.py``.
+  """
+  goal_resample_on_success: bool | None = None
+  """Rebuild the env resampling (or not) the goal when the threshold is crossed."""
   overlay: bool = True
   """Stamp orientation error, goals reached and time on each frame (reorient
   tasks only). Error is the command's own metric -- against the goal the step
@@ -182,6 +194,8 @@ def _apply_cube_overrides(env_cfg, cfg: "RenderConfig", task_id: str):
     cfg.cube_priority is None
     and cfg.cube_friction_sliding is None
     and cfg.palm_euler is None
+    and cfg.goal_drift is None
+    and cfg.goal_resample_on_success is None
   ):
     return env_cfg
 
@@ -206,13 +220,19 @@ def _apply_cube_overrides(env_cfg, cfg: "RenderConfig", task_id: str):
     kwargs["cube_friction_sliding"] = cfg.cube_friction_sliding
   if cfg.palm_euler is not None:
     kwargs["palm_euler"] = tuple(cfg.palm_euler)
+  if cfg.goal_drift is not None:
+    kwargs["goal_drift"] = cfg.goal_drift
+  if cfg.goal_resample_on_success is not None:
+    kwargs["goal_resample_on_success"] = cfg.goal_resample_on_success
   rebuilt = make_env_cfg(play=True, **{
     k: v for k, v in kwargs.items() if k != "play"
   })
   print(
     f"[INFO] cube override: priority={kwargs.get('cube_priority')} "
     f"friction_sliding={kwargs.get('cube_friction_sliding')} "
-    f"palm_euler={kwargs.get('palm_euler')}"
+    f"palm_euler={kwargs.get('palm_euler')} "
+    f"goal_drift={kwargs.get('goal_drift')} "
+    f"goal_resample_on_success={kwargs.get('goal_resample_on_success')}"
   )
   return rebuilt
 

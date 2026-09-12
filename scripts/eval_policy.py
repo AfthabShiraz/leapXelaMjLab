@@ -105,6 +105,15 @@ class EvalConfig:
   env the checkpoint was trained in, which is what the logged metrics reflect."""
   device: str | None = None
   json_out: str | None = None
+  trace_out: str | None = None
+  """Also dump the raw per-step arrays (err, r_z, r_xy, ang_speed, done, fell) to this .npz.
+
+  The summary JSON answers "how close did it get"; the traces answer "what shape
+  was the approach". Needed to test whether the policy has a capture basin --
+  i.e. whether d(err)/dt is directed below some radius and a random walk above
+  it -- which the per-episode summaries cannot distinguish from uniformly slow
+  steering.
+  """
   # Cube physics overrides -- these must reconstruct the env the checkpoint was
   # TRAINED with. --cube-condim especially: run 19's checkpoints are condim 6,
   # and scoring them under the condim-3 default measures a different physical
@@ -142,6 +151,20 @@ class EvalConfig:
   # threshold-relaxed checkpoint in the reference env (leave this unset) for
   # best error and HELD; set it only to reproduce the training env.
   env_success_threshold: float | None = None
+  leap_joint_limits: bool | None = None
+  """Rebuild the env with the bare-LEAP joint ranges. Must match training."""
+  angvel_align: float | None = None
+  """Rebuild the env with this goal-aligned angular-velocity reward weight.
+
+  Reward-only, so it does not change the policy's input width and an eval can
+  safely leave it unset; set it when reproducing the training env exactly.
+  """
+  actor_cube_ang_vel: bool | None = None
+  """Rebuild the env with the actor's cube-angular-velocity probe on/off.
+
+  Must match how the checkpoint was trained, or the actor gets the wrong obs
+  width and the load fails (57 vs 60).
+  """
   episode_length_s: float | None = None
   """Override the env's episode timeout, leaving DR/noise/physics untouched.
 
@@ -177,6 +200,9 @@ def _build_env_cfg(cfg: EvalConfig):
     goal_resample_on_success=cfg.goal_resample_on_success,
     orientation_fine=cfg.orientation_fine,
     success_threshold=cfg.env_success_threshold,
+    actor_cube_ang_vel=cfg.actor_cube_ang_vel,
+    angvel_align=cfg.angvel_align,
+    leap_joint_limits=cfg.leap_joint_limits,
   )
   overridden = _apply_env_overrides(env_cfg, overrides, cfg.task)
   return overridden if overridden is not None else env_cfg
@@ -403,6 +429,17 @@ def _analyze(trace: dict, cfg: EvalConfig) -> dict:
           # consecutive-rotation count for this episode.
           "n_threshold_entries": int(
             np.sum(np.diff((seg_err < cfg.success_threshold).astype(np.int8), prepend=0) == 1)
+          ),
+          # Step of the FIRST entry, -1 if the episode never gets there. Added
+          # 2026-09-12: `best_step` is argmin-of-error, which equals the
+          # acquisition time only for single-entry episodes, so using it as a
+          # time-to-acquisition measure silently conditions on the entry count
+          # -- and an intervention aimed at acquisition rate changes exactly
+          # that distribution. This field is the unbiased version.
+          "first_entry_step": (
+            int(np.argmax(seg_err < cfg.success_threshold))
+            if bool((seg_err < cfg.success_threshold).any())
+            else -1
           ),
           "min_err_post_update": float(err_post[window, e].min()),
           "reached_threshold_post_update": bool(
@@ -658,6 +695,14 @@ def main() -> None:
     raise SystemExit(f"No such checkpoint: {cfg.checkpoint}")
 
   trace = _rollout(cfg)
+  if cfg.trace_out is not None:
+    import numpy as _np
+    _np.savez_compressed(
+      cfg.trace_out,
+      **{k: trace[k] for k in ("err", "r_z", "r_xy", "ang_speed", "done", "fell")},
+    )
+    print(f"[INFO] wrote traces to {cfg.trace_out}")
+
   res = _analyze(trace, cfg)
   _report(res)
 

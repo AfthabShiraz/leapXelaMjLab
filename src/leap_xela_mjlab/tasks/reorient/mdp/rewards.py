@@ -10,7 +10,7 @@ import torch
 from mjlab.entity import Entity
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
-from mjlab.utils.lab_api.math import quat_error_magnitude
+from mjlab.utils.lab_api.math import quat_box_minus, quat_error_magnitude
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
@@ -66,6 +66,59 @@ def cube_orientation_inverse(
   assert goal is not None
   err = quat_error_magnitude(cube.data.root_link_quat_w, goal)
   return 1.0 / (err + eps)
+
+
+def cube_angvel_toward_goal(
+  env: ManagerBasedRlEnv,
+  command_name: str = "goal_orientation",
+  object_name: str = "cube",
+  eps: float = 0.05,
+  speed_floor: float = 0.5,
+) -> torch.Tensor:
+  """How well the cube's rotation is AIMED at the goal, in [-1, 1].
+
+  ``cos = (omega . r_hat) / (|omega| + speed_floor)`` where ``r_hat`` is the unit
+  rotation vector carrying the cube to the goal. +1 is rotating straight at the
+  goal, -1 straight away, 0 orthogonal.
+
+  Why alignment and not the raw projection ``omega . r_hat`` (tried first,
+  2026-09-12, and withdrawn 450 iterations in):
+
+  1. *The projection telescopes.* ``omega . r_hat`` is approximately
+     ``-d(err)/dt``, so its episode sum is just the total error closed -- bounded
+     by ``err_0`` ~ 2.2 rad no matter how long the episode runs -- while the
+     orientation kernel accrues every step without bound. Measured at weight 1.0:
+     ``Episode_Reward/angvel_align`` = 0.008 against ``orientation`` = 36.7 and
+     ``success`` = 46.9, i.e. **0.01% of the reward**. No weight fixes this: one
+     large enough to matter in total is explosive per step whenever the policy
+     does align, which buys a spin-forever policy that never lands.
+  2. *It rewards the wrong thing.* Traces show the hand already produces 47-55
+     deg/s of diffusion and converts only 1.3-13 deg/s into progress. The deficit
+     is aim, not speed, and the projection pays for both.
+  3. *It sidesteps the potential-shaping objection.* ``verdicts/05`` predicts a
+     null for progress shaping because it is potential-based and so leaves the
+     optimal policy unchanged. A cosine is ``-d(err)/dt`` divided by ``|omega|``,
+     which is not a potential difference, so that argument does not apply here.
+
+  Bounded by construction, so it cannot dominate: at most 1.0 per step, 2.0 per
+  40-step rollout window after dt scaling, against the orientation term's ~37.
+
+  ``speed_floor`` (rad/s) attenuates the term when the cube is barely moving,
+  where the direction of a near-zero ``omega`` is noise -- and stops a policy
+  collecting full alignment credit for creeping. At the measured 1.3 rad/s churn
+  a perfectly aimed rotation scores 1.3/1.8 = 0.72. ``eps`` does the same job at
+  the other end, fading the term out inside ~3 deg where ``r`` vanishes and its
+  direction is meaningless, leaving the inverse kernel to land the cube.
+  """
+  cube: Entity = env.scene[object_name]
+  goal = env.command_manager.get_command(command_name)
+  assert goal is not None
+  omega = cube.data.root_link_ang_vel_w
+  # World-frame rotation vector to the goal; same convention as eval_policy.py.
+  r = quat_box_minus(goal, cube.data.root_link_quat_w)
+  r_hat = r / (torch.linalg.vector_norm(r, dim=-1, keepdim=True) + eps)
+  speed = torch.linalg.vector_norm(omega, dim=-1)
+  return (omega * r_hat).sum(dim=-1) / (speed + speed_floor)
 
 
 def _long_tail_tolerance(

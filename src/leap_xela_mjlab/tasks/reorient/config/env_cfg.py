@@ -105,6 +105,9 @@ def make_reorient_env_cfg(
   goal_drift: bool | None = None,
   goal_resample_on_success: bool | None = None,
   orientation_fine: bool | None = None,
+  actor_cube_ang_vel: bool = False,
+  angvel_align_weight: float = 0.0,
+  leap_joint_limits: bool = False,
   # L2 penalty on raw action MAGNITUDE. 0.0 keeps the historical behaviour
   # (runs 1-26), where only the action *rate* was penalized and the policy's
   # mean action ran away to ~13 -- 3x the full joint range once scaled, i.e.
@@ -179,6 +182,31 @@ def make_reorient_env_cfg(
     ),
     "last_action": ObservationTermCfg(func=envs_mdp.last_action),
   }
+
+  # CAPABILITY PROBE (2026-09-12). The actor is velocity-blind and
+  # ``history_length=1``, so it cannot finite-difference either -- it is a pure
+  # vector field on SO(3) with no damping term, which limit-cycles and settles
+  # only where a static cage exists. That is exactly the measured signature:
+  # acquisition time is uncorrelated with the rotation demanded (r=+0.01 against
+  # tip demanded), the cube travels ~7x the geodesic, 68% of acquisitions happen
+  # above 0.5 rad/s, and failures orbit at ~1.0 rad/s while pinned successes slow
+  # to 0.33 and hold. The 2026-09-06 parity audit dismissed velocity blindness
+  # because playground's reference is blind too -- a parity argument, never a
+  # measurement.
+  #
+  # Deliberately NOT noised, unlike the other actor terms: this asks whether
+  # knowing omega helps AT ALL. True cube angular velocity is privileged
+  # relative to the reference task, so treat a result here the way the pinned
+  # eval is treated -- a capability measurement, not a task score. The
+  # deployable form is an observation history (ObservationTermCfg exposes
+  # history_length), which also has to average down the 0.1 rad cube_ori_error
+  # noise: a 2-frame difference at that noise level gives 2 rad/s of velocity
+  # noise against a 1.3 rad/s signal.
+  if actor_cube_ang_vel:
+    actor_terms["cube_ang_vel"] = ObservationTermCfg(
+      func=reorient_mdp.cube_ang_vel,
+      params={"object_name": "cube"},
+    )
 
   critic_terms = {
     "joint_pos": ObservationTermCfg(
@@ -368,6 +396,21 @@ def make_reorient_env_cfg(
         "eps": _INVERSE_EPS,
       },
     ),
+    # Goal-aligned angular velocity: rotate_z's reward with a goal-dependent
+    # axis. 0.0 = off, which is the default and leaves every existing run
+    # byte-identical. 1.0 matches rotate_z's own weight, the value known to
+    # produce 2.19 rad/s of directed rotation on this hand.
+    **(
+      {
+        "angvel_align": RewardTermCfg(
+          func=reorient_mdp.cube_angvel_toward_goal,
+          weight=angvel_align_weight,
+          params={"command_name": "goal_orientation", "object_name": "cube"},
+        )
+      }
+      if angvel_align_weight
+      else {}
+    ),
     "position": RewardTermCfg(
       func=reorient_mdp.cube_position_tolerance,
       weight=0.5,
@@ -483,7 +526,9 @@ def make_reorient_env_cfg(
       terrain=TerrainEntityCfg(terrain_type="plane"),
       entities={
         "robot": get_leap_xela_cfg(
-          finger_tip_type=finger_tip_type, palm_euler=palm_euler
+          finger_tip_type=finger_tip_type,
+          palm_euler=palm_euler,
+          leap_joint_limits=leap_joint_limits
         ),
         "cube": get_cube_cfg(
           half_size=cube_half_size,
@@ -568,6 +613,9 @@ def make_reorient_env_cfg(
     "goal_drift": goal_drift,
     "goal_resample_on_success": goal_resample_on_success,
     "orientation_fine": orientation_fine,
+    "actor_cube_ang_vel": actor_cube_ang_vel,
+    "angvel_align_weight": angvel_align_weight,
+    "leap_joint_limits": leap_joint_limits,
     "action_l2_weight": action_l2_weight,
     "success_threshold": success_threshold,
     "orientation_kernel": orientation_kernel,

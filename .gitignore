@@ -15,3 +15,33 @@ eval/videos/
 
 # wandb's local run cache; the runs themselves live on the server.
 wandb/
+
+# Vendored bare-LEAP hand (mujoco_playground's leap_rh_mjx.xml + the
+# mujoco_menagerie meshes it references). ~15 MB of third-party Apache-2.0
+# assets that are fetched, not authored here -- the same reason
+# research/sources/ is not committed, and consistent with leapXELA_model being
+# a submodule rather than checked-in files. Regenerate with:
+#
+#   D=src/leap_xela_mjlab/assets/leap_plain; mkdir -p $D/assets
+#   git clone --depth 1 --filter=blob:none --sparse \
+#     https://github.com/google-deepmind/mujoco_playground.git /tmp/mpg
+#   (cd /tmp/mpg && git sparse-checkout set mujoco_playground/_src/manipulation/leap_hand)
+#   git clone --depth 1 --filter=blob:none --sparse \
+#     https://github.com/google-deepmind/mujoco_menagerie.git /tmp/men
+#   (cd /tmp/men && git sparse-checkout set leap_hand)
+#   X=/tmp/mpg/mujoco_playground/_src/manipulation/leap_hand/xmls
+#   cp $X/leap_rh_mjx.xml $D/ && cp -r $X/meshes $D/
+#   cp /tmp/men/leap_hand/assets/*.obj $D/assets/
+#   sed -i 's|\.\./\.\./\.\./\.\./\.\./mujoco_menagerie/leap_hand/assets/|assets/|g' \
+#     $D/leap_rh_mjx.xml
+#
+# Verify: it should compile to nq=16, nu=16, ngeom=56.
+src/leap_xela_mjlab/assets/leap_plain/
+
+# Raw per-step eval traces from `eval_policy.py --trace-out`. Binary and
+# regenerable by re-running the eval; the JSON/TXT summaries beside them are
+# what gets committed.
+eval/*.npz
+
+# run_queue.sh backups taken before editing a live queue.
+scripts/run_queue.sh.bak-*

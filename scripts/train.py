@@ -97,6 +97,31 @@ class TrainConfig:
   # (1/(err+0.1)). None = linear. Pair "inverse" with a pinned goal; see the
   # orientation_kernel note in tasks/reorient/config/env_cfg.py.
   orientation_kernel: str | None = None
+  leap_joint_limits: bool | None = None
+  """Replace the baked LeapXELA joint ranges with the bare LEAP hand's.
+
+  Isolates the joint limits from the tactile pads: geometry, inertia and
+  actuator gains are untouched. Lateral splay goes +/-20 deg -> +/-60 deg.
+  """
+  angvel_align: float | None = None
+  """Weight on the goal-aligned angular-velocity reward (0 = off).
+
+  rotate_z uses weight 1.0 on the same reward form with a fixed axis and reaches
+  2.19 rad/s; 1.0 here keeps the cell single-variable against that precedent.
+  """
+  gamma: float | None = None
+  """PPO discount. Note GAE credit decays as (gamma*lam)^k, so raising gamma
+  WITHOUT lam barely moves the credit window: 0.99/0.95 gives 16.8 steps and
+  0.998/0.95 only 19.3. Vary both or the cell tests nothing."""
+  lam: float | None = None
+  """GAE lambda. See --gamma."""
+  actor_cube_ang_vel: bool | None = None
+  """Give the ACTOR the cube's angular velocity (critic already has it).
+
+  Capability probe: the actor is otherwise velocity-blind and single-frame.
+  Changes the actor obs from 57 to 60 dims, so a warm start needs
+  ``scripts/graft_obs.py`` to widen the checkpoint first.
+  """
   # Logging / checkpointing.
   logger: Literal["wandb", "tensorboard"] | None = None
   save_interval: int | None = None
@@ -148,6 +173,9 @@ def _apply_env_overrides(
     and cfg.action_l2 is None
     and cfg.success_threshold is None
     and cfg.orientation_kernel is None
+    and cfg.actor_cube_ang_vel is None
+    and cfg.angvel_align is None
+    and cfg.leap_joint_limits is None
   ):
     return
 
@@ -193,6 +221,9 @@ def _apply_env_overrides(
     ("action_l2_weight", cfg.action_l2),
     ("success_threshold", cfg.success_threshold),
     ("orientation_kernel", cfg.orientation_kernel),
+    ("actor_cube_ang_vel", cfg.actor_cube_ang_vel),
+    ("angvel_align_weight", cfg.angvel_align),
+    ("leap_joint_limits", cfg.leap_joint_limits),
   ):
     if _val is None:
       continue
@@ -294,6 +325,24 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> dict[str, Any]:
   if cfg.init_std is not None:
     agent_cfg.actor.distribution_cfg["init_std"] = cfg.init_std
     print(f"[INFO] init_std -> {cfg.init_std}")
+  # GAE credit decays as (gamma*lam)^k -- see rsl_rl PPO.compute_returns:
+  #   advantage = delta + gamma * lam * advantage
+  # so the credit window is 1/(1 - gamma*lam) steps. At the stock 0.99/0.95 that
+  # is 16.8 steps (0.84 s) against a measured 10 s median goal acquisition.
+  # Raising gamma ALONE moves it to 19.3 steps, which is why a gamma-only cell
+  # tests nothing; both are exposed here so a cell can move them together.
+  if cfg.gamma is not None:
+    agent_cfg.algorithm.gamma = cfg.gamma
+    print(f"[INFO] gamma -> {cfg.gamma}")
+  if cfg.lam is not None:
+    agent_cfg.algorithm.lam = cfg.lam
+    print(f"[INFO] lam -> {cfg.lam}")
+  if cfg.gamma is not None or cfg.lam is not None:
+    _g, _l = agent_cfg.algorithm.gamma, agent_cfg.algorithm.lam
+    print(
+      f"[INFO] GAE credit window 1/(1-gamma*lam) = {1.0 / (1.0 - _g * _l):.1f} steps "
+      f"({1.0 / (1.0 - _g * _l) * 0.05:.2f} s)"
+    )
 
   print(f"[INFO] Training with: device={device}, seed={seed}, rank={rank}")
   if rank == 0:
