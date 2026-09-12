@@ -1461,7 +1461,7 @@ soft-contact compliance. The gap figure is approximate — it takes each pad's s
 half-extent and ignores per-box orientation — but a 6 mm overlap is far too large for
 orientation to flip the sign.
 
-### Still open (updated 2026-09-11, revised after the eval measurement-bug fix and runs 31–34)
+### Still open (updated 2026-09-12, revised after runs 35–37: the recipe is converged)
 
 - **The contact and actuation model is closed. Five nulls.** `condim 6` (run 19), friction
   (run 26), action saturation (runs 27–28), cube size (runs 29–30), and the rolling-resistance
@@ -1535,15 +1535,41 @@ orientation to flip the sign.
   best error 26.3 → 22.4°, just past the ~3° floor, while its 1e-3 sibling moved 3.5° the
   other way. One seed cannot tell those apart. Runs 29–30 produced the same non-monotone
   ±2° straddle, which reinforces the point.
-- **Attribution inside runs 32–34 is untested.** The reward kernel, the pinned goal and the
-  entropy cut all changed at once, in a single training seed. Which of the three is necessary —
-  or whether all three are — is open. The training task in runs 32–34 is also goal-pinned, not
-  the reference task, though every number quoted for them is measured in the reference env with
-  drift on.
-- **In flight: run 34's continuation to iteration 9000**, running on a rented A100 (see the
-  infrastructure note under "## 34. `warm-inv-pin-ent1e3-ext` — continuation, still climbing").
-  Not plateaued as of iteration 4499 — 57.3% of episodes reach < 5.7°, 0.77 goals/episode.
-  Whether it plateaus, and where, is open.
+- **ANSWERED (2026-09-12): attribution inside runs 32–34.** The reward kernel, the pinned goal
+  and the entropy cut all changed at once in a single seed. Runs 35–36 resolved it leave-one-out:
+  **the kernel closes the distance and the pinning converts it**, neither alone is enough, and
+  the entropy setting rests on run 32 (std runaway without it) plus run 21 (1e-3 alone moves
+  nothing). See "## 35–36. `abl-nokernel` / `abl-nopin`". Still true and worth remembering: the
+  training task in runs 32–37 is goal-pinned, not the reference task, though every number quoted
+  for them is measured in the reference env with drift on.
+- **ANSWERED (2026-09-12): run 34's continuation plateaus at ~iteration 8000.** It ran to 8999
+  on the rented A100 and to 11625 locally. Scored at 3 seeds, iteration 8000 gives 82.5% of
+  episodes reaching < 5.7° and 11625 gives 80.8% — indistinguishable. 4499 → 8000 is where the
+  entire gain lives; the 2,626 iterations after it bought nothing measurable. **The recipe is no
+  longer the open question — it is converged, and more iterations of it are not an experiment.**
+  See "## 37. `remote_brev-ext` / `night-ext` — the main line, and where it converges".
+- **THE open question is now the tip-over residual, at a fifth of episodes.** At the converged
+  checkpoint, 30 of 139 reference-env episodes never reach 5.7°, and only 2 of those drop the
+  cube — the rest survive the full episode and stall at a median 18.1°, split 14.5° tip against
+  8.4° spin. Same signature at iteration 8000. This is the horizontal-axis component that has run
+  through this file from the start; it is now confined rather than changed. It will not yield to
+  more iterations of the run-33 recipe — that is measured, not assumed (run 37). Whatever comes
+  next has to attack the tip-over directly: a tip-axis waypoint or skill decomposition, a
+  curriculum on the horizontal component, or an initial-state distribution that stops over-
+  sampling the episodes it already wins.
+- **Open, and a question about the task rather than the policy: what the kick costs at
+  convergence.** Pinned, the converged policy holds the goal for half a second in 73.1% of
+  episodes at a median best error of 0.73°. Under the drift it reaches 5.29° and holds nothing.
+  The precision is there and the reference task does not pay for it. **The drift is playground's
+  own `InHandReorientationCommand` behaviour, so the pinned number is a capability measurement
+  and not a task score** — quoting it as a task result would be a departure from the reference
+  dressed up as a win. What is genuinely open is whether the kick should be replaced by a fresh
+  goal *resample* (new goal, no 160° discounted penalty) for the deployed task, and whether that
+  is still the same benchmark. Decide that before quoting pinned numbers anywhere outside this
+  file.
+- **Open, practical: the DGX has been idle since 06:20 on 2026-09-12** and the queue is stood
+  down on `STOP_SUPERVISOR`. There is no next run queued, because the obvious one — continue the
+  main line — is the one run 37 rules out.
 - **Use ≥3 eval seeds from here on.** The same checkpoint at 128 envs, re-scored three times,
   spans median best error 25.4–28.6° from GPU non-determinism alone — see the Interlude. A
   single-seed eval at n=128 is not enough to resolve a <3° effect.
@@ -2196,8 +2222,9 @@ The median episode now reaches the success threshold. Still no plateau.
 Training-side at iteration 4499: training error ~22.6°, action std 1.55, ~263 steps per episode
 spent inside 5.7° (up from ~10 at the start of run 33), drops 0.25/episode.
 
-A continuation to iteration 9000 is running on a rented A100 — see the infrastructure note
-below.
+A continuation to iteration 9000 was run on a rented A100 and then on past it locally. It
+plateaus at ~iteration 8000 — see "## 37. `remote_brev-ext` / `night-ext` — the main line, and
+where it converges", and the infrastructure note below for the rental.
 
 ---
 
@@ -2286,3 +2313,152 @@ still falling.
 with the drift on — which is what `research/NEXT_EXPERIMENTS.md` Experiment 2 specifies, and
 run 36 is now the measured reason not to. Attribution of the entropy setting rests on run 32
 (std runaway without it) plus run 21 (1e-3 alone moves nothing), not on a dedicated cell.
+
+---
+
+## 37. `remote_brev-ext` / `night-ext` — the main line, and where it converges
+
+Run 34 continued under an unchanged recipe — inverse orientation kernel, goal pinned during
+training, `entropy_coef` 1e-3, seed 42, 8192 envs — in two segments that are one run:
+
+- **4499 → 8999** on the rented A100 (`logs/rsl_rl/.../remote_brev-ext`). Checkpoints only; no
+  console log was brought back from the instance, so there is no training-side trace for this
+  stretch.
+- **8999 → 11625** locally as `night-ext`, 2026-09-12 03:23–06:20, 2h56m, `--init-from` the
+  A100's `model_8999`. Target was 14000; it took SIGTERM at 11625.
+
+Nothing past 4499 had ever been scored. `night-ext` was stopped before its final checkpoint
+existed, so the queue's own guard fired (`'night-ext' finished but model_13999.pt is missing —
+stopping`) and the eval step that normally closes a queue entry never ran. The whole segment sat
+dark until 2026-09-12, when it was scored retrospectively from the kept checkpoints.
+
+### The curve, and where it flattens
+
+Reference env (drift on), deterministic, `--cube-priority 0`, `--num-envs 128 --num-steps 700`,
+seed 7, ~140 episodes per cell. "Goals per drop" is threshold entries ÷ `cube_fell`
+terminations — the same quantity the playground paper reports as consecutive rotations before
+failure.
+
+| iteration | reach < 5.7° | goals/ep | median best | closure | spin | tip | goals per drop |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 2999 (run 33) | 33.1% | 0.40 | 10.78° | 91.1% | 92.8% | 90.0% | 7.4 |
+| 4499 (run 34) | 50.7% | 0.70 | 5.72° | 94.6% | 93.0% | 95.1% | 8.5 |
+| 5500 | 67.4% | 0.95 | 5.57° | 95.4% | 93.4% | 95.3% | 9.8 |
+| 6750 | 75.5% | 1.01 | 5.36° | 95.7% | 94.4% | 95.7% | 8.3 |
+| **8000** | **83.9%** | **1.14** | **5.30°** | 95.8% | 95.2% | 95.7% | 9.1 |
+| 9000 | 83.0% | 1.15 | 5.39° | 95.9% | 93.3% | 96.0% | 9.5 |
+| 10250 | 80.1% | 1.17 | 5.29° | 96.0% | 94.1% | 96.0% | 9.2 |
+| 11625 | 78.4% | 1.14 | 5.29° | 95.9% | 94.2% | 95.6% | 9.3 |
+
+**The 2999 and 4499 rows are single-seed (seed 7) and are not the pooled figures quoted in
+sections 33 and 34** (31.2% and 57.3%, each pooled over 3 seeds × ~130 episodes). Read down this
+column only against other rows in this table; the 50.7% at 4499 is not a regression from 57.3%,
+it is the same checkpoint measured on one seed instead of three.
+
+**The recipe works, and it converges at ~iteration 8000.** Everything after that is flat.
+
+### The plateau is measured, not read off one seed
+
+The single-seed curve appears to *decline* after 8000 — 83.9 → 78.4%. It does not. Both ends
+re-scored at seeds 7/8/9:
+
+| checkpoint | seed 7 | seed 8 | seed 9 | pooled | median best | goals/ep |
+| --- | --- | --- | --- | --- | --- | --- |
+| 8000 | 83.9% | 79.1% | 84.3% | **82.5%** | 5.3° at every seed | 1.14 / 1.14 / 1.28 |
+| 11625 | 78.4% | 85.0% | 79.1% | **80.8%** | 5.3° at every seed | 1.14 / 1.29 / 1.09 |
+
+82.5% against 80.8%, with a ±3% per-seed spread at each and an identical 5.3° median best error.
+The two checkpoints are indistinguishable. The honest statement is **no further improvement**,
+not a decline — and the apparent 6-point drop on seed 7 alone is exactly the artefact the
+"use ≥3 eval seeds from here on" entry in Still open was written to prevent.
+
+**The overnight run bought nothing measurable.** 2,626 iterations, 2h56m of GB10, from a
+checkpoint that was already converged to one that scores the same. So did the last ~1000
+iterations of the A100 segment. The rental paid for 4499 → ~8000, which is where the whole gain
+lives; everything past 8000 was spent.
+
+### What the ceiling is made of — the pinned-goal eval
+
+`model_11625` re-scored with `--goal-drift False --goal-resample-on-success False`, against run
+33 @2999 under the same pinning:
+
+| | run 33 @2999 pinned | run 37 @11625 pinned |
+| --- | --- | --- |
+| HELD @ 0.1 rad (10 consecutive steps) | 28.1% | **73.1%** (98/134) |
+| SETTLED (\|w\| < 0.2 rad/s) | 28.9% | **73.9%** |
+| goals/episode | 3.16 | **5.61** |
+| median best error | 11.79° | **0.73°** |
+| p10 best error | 0.62° | **0.15°** |
+
+A median best error of 0.73° with 73% of episodes *holding* the goal for half a second is not a
+policy that lacks precision. Under the drift the same checkpoint reaches 5.29° and holds
+nothing — **the drift-on ceiling is the kick, not the policy.** That is the kick arithmetic from
+runs 35–36 showing up in the converged policy: a success kicks the goal ~160° away, which under
+the inverse kernel costs ~190 discounted reward against a +5 bonus, so the optimum remains
+"arrive, then leave". The pinned number is what the hand can do; the drift-on number is what the
+task pays it to do.
+
+### The training metric is not a convergence signal
+
+Training-side across 9000 → 11625: `orientation_error` flat at 12–18°, `success` flat at
+0.60–0.69, `goals_reached` ~500/episode, action std drifting 1.18 → 1.29. Flat — and the
+deterministic reference score is flat over the same span, so here the two agree.
+
+They did not agree earlier. The training metric was already sitting at this level at iteration
+9000, while the reference score had been climbing 50.7% → 83.9% across 4499 → 8000 and was only
+just finishing. A flat training curve therefore does not mean a converged policy, and did not for
+~3500 iterations of this run. This is the same lesson as "drop training-time
+`consecutive_success` as a leading indicator" (Still open, runs 29–30), now from the other
+direction: it under-reported real progress instead of over-reporting none. **Convergence has to
+be called on the deterministic eval.**
+
+### The residual is the tip-over, again
+
+At 11625, seed 7: 30 of 139 episodes never reach 5.7°. **Only 2 of those 30 end in a drop** — the
+rest survive the full episode and stall. Their best error is a median 18.1° (range 6.7–117.4°),
+split **14.5° tip against 8.4° spin**, down from 80° tip / 55° spin at episode start. 10 of the
+30 get inside 12° and stop there. At 8000 the picture is the same: 23 failures, 2 drops, 21.0°
+median, 18.9° tip against 9.1° spin.
+
+This is the horizontal-axis component that has run through this file since the residual-error
+decomposition — the policy closes the spin and stalls on the tip-over. It has not changed
+character; it has been confined. It used to describe every episode and now describes a fifth of
+them, and within those it is still 1.7× the spin component.
+
+### Against the reference benchmark
+
+~9.3 successes per drop, against the MuJoCo Playground paper's ten hardware trials quoted under
+"What the reference actually achieves": median 3.5, mean 7.1, best 27 consecutive rotations
+before failure.
+
+This is a scale comparison and not a parity claim. Ours is sim against their hardware; it is a
+deterministic mean-action rollout (observation noise and domain randomization are on — `play` is
+False — but the exploration noise is not); and the 700-step cap truncates long runs, which
+censors the upper tail their "best 27" comes from.
+
+With that said: **the 0/32 that opened this investigation is closed.** Worth recording what
+closed it. The 2026-09-06 audit concluded "the reference definitively works, our 0/32 is a real
+gap, and the difference is the hand." The gap was closed without touching the hand — same
+LeapXELA model, same pads, same contact model, same palm angle — by changing the reward kernel
+and the goal machinery. The bare-hand control has still never been run, so "the difference is the
+hand" was never directly tested; this run is evidence against it.
+
+### Artifacts
+
+`eval/mainline_it{5500,6750,8000,9000,10250,11625}_n128_det.json` (+ `_eval.txt`), the seed
+replicates `eval/mainline_it{8000,11625}_n128_s{8,9}_det.json`, and the pinned
+`eval/mainline_it11625_trainenv_n128_det.json`. All at `--cube-priority 0`; the `mainline_`
+prefix is used because these score checkpoints from two run directories as one series.
+
+### Infrastructure
+
+- `SAVE_INTERVAL` went 50 → 25 in `run_queue.sh` (~1.7 min of training per save at 8192 envs).
+  This host reboots uncleanly, and at 50 a reboot cost up to ~3.4 min of work; it also made the
+  retrospective scoring above finer-grained than it would otherwise have been.
+- The stop at 11625 was **not a crash**. `train.py` exited rc=143 (SIGTERM) and the queue's
+  missing-final-checkpoint guard then wrote `STOP_SUPERVISOR` rather than looping on a target it
+  could not reach.
+- The `@reboot` cron hook fired at 10:21 and correctly stood down on `STOP_SUPERVISOR`
+  (`a queue is already running; leaving it alone` → `STOP_SUPERVISOR present; standing down`).
+  The guard behaved as designed in both places; the cost was ~4 h of idle GPU, which is the
+  price of a guard that does not restart a run nobody has looked at yet.

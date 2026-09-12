@@ -20,7 +20,7 @@ REPO="/home/afthabshiraz/MujocoRL-Internship/leapXelaMjLab"
 UV="/home/afthabshiraz/.local/bin/uv"
 EXPERIMENT="leap_xela_cube_reorient_reference"
 NUM_ENVS=8192
-SAVE_INTERVAL=50
+SAVE_INTERVAL=25   # ~1.7 min of training per save on the DGX; this host reboots uncleanly
 
 CONSOLE_DIR="$REPO/logs/console"
 STATE_FILE="$CONSOLE_DIR/CURRENT_RUN.env"
@@ -134,6 +134,12 @@ EVAL_NUM_ENVS=128
 QUEUE=(
   "abl-nokernel|3000|42|--cube-priority 0 --goal-drift False --goal-resample-on-success False --entropy-coef 0.001 --init-from $RUN14_MATCHED|--cube-priority 0|--cube-priority 0 --goal-drift False --goal-resample-on-success False"
   "abl-nopin|3000|42|--cube-priority 0 --orientation-kernel inverse --entropy-coef 0.001 --init-from $RUN14_MATCHED|--cube-priority 0|"
+  # Overnight, after the ablations: the main line continues on the DGX from where
+  # the rented A100 left it at iteration 8999. Same recipe as runs 33/34 and the
+  # A100 segment, so the whole curve from 1500 stays one comparable series.
+  # Target 14000 is what fits the night at ~4.06 s/iteration; it does not have to
+  # finish -- every 25th checkpoint is kept and the run resumes from the newest.
+  "night-ext|14000|42|--cube-priority 0 --orientation-kernel inverse --goal-drift False --goal-resample-on-success False --entropy-coef 0.001 --init-from $REPO/logs/rsl_rl/$EXPERIMENT/remote_brev-ext/model_8999.pt|--cube-priority 0|--cube-priority 0 --goal-drift False --goal-resample-on-success False"
 )
 
 mkdir -p "$CONSOLE_DIR" "$EVAL_DIR"
