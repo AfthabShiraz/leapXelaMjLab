@@ -1556,6 +1556,22 @@ orientation to flip the sign.
   exploration noise, which accumulate without the policy ever arriving deliberately.
 - **There is no action-magnitude readout in `scripts/eval_policy.py`.** The `|a|` numbers in
   runs 27–28 are derived from `Episode_Reward/action_l2`, not measured deterministically.
+- **PROPOSED, not started: train the bare LEAP hand in this stack as a true control.** Every
+  comparison this project has made against "the reference" is our LeapXELA numbers against
+  *someone else's bare-hand numbers measured differently* — Hamid's reward 375, or the
+  playground paper's ten real-hardware trials (median 3.5 / mean 7.1 / best 27 consecutive
+  rotations). Neither is like-for-like, and the reward comparison is now void anyway: runs
+  33–34 changed the orientation kernel, so our reward is no longer on the same scale as the
+  375. Meanwhile the whole premise of task 1 — that the XELA skin is what makes this the hard
+  case — has never been measured on one bench.
+  The test: register playground's `leap_rh_mjx.xml` (public, not in this repo) as a second
+  `finger_tip_type`, and run the run-33 recipe on it with the same eval. That gives bare-hand
+  vs XELA under identical physics, reward, episode length and metrics, and the difference
+  between the two curves is what the tactile skin costs — which is the number the internship
+  exists to produce. Cost: model registration plus one 3000-iteration run, ~2 h on the DGX.
+  Deferred 2026-09-12 by the supervisor's call ("not yet but maybe later"); the warm-start
+  recipe should be settled first so the control is run against a stable recipe rather than a
+  moving one.
 
 ---
 
