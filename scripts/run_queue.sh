@@ -134,6 +134,14 @@ EVAL_NUM_ENVS=128
 QUEUE=(
   "abl-nokernel|3000|42|--cube-priority 0 --goal-drift False --goal-resample-on-success False --entropy-coef 0.001 --init-from $RUN14_MATCHED|--cube-priority 0|--cube-priority 0 --goal-drift False --goal-resample-on-success False"
   "abl-nopin|3000|42|--cube-priority 0 --orientation-kernel inverse --entropy-coef 0.001 --init-from $RUN14_MATCHED|--cube-priority 0|"
+  # The bare LEAP hand -- mujoco_playground's model, no tactile pads, run under
+  # the run-14 recipe (linear kernel, drift on, entropy 0.01) so the ONLY
+  # difference from run 14 is the hand. This is the control for every "the
+  # difference is the skin" claim in TRAINING_NOTES.md, none of which has been
+  # tested directly. It reached 1238/3000 by hand on 2026-09-12 23:00 and died
+  # in the 00:06 reboot; queued here so the @reboot hook resumes IT rather than
+  # the main line. Newest checkpoint model_1225.pt.
+  "leap-control|3000|42|--cube-priority 0|--task Mjlab-LEAP-Cube-Reorient-Control --cube-priority 0||Mjlab-LEAP-Cube-Reorient-Control|leap_plain_cube_reorient_control"
   # Overnight, after the ablations: the main line continues on the DGX from where
   # the rented A100 left it at iteration 8999. Same recipe as runs 33/34 and the
   # A100 segment, so the whole curve from 1500 stays one comparable series.
@@ -153,12 +161,16 @@ fi
 
 log() { echo "[$(date -Is)] $*" | tee -a "$QUEUE_LOG"; }
 
-latest_iter() {  # $1 = run name
-  ls -1 "$REPO/logs/rsl_rl/$EXPERIMENT"/*_"$1"/model_*.pt 2>/dev/null \
+# $2 is the experiment tree, which is NOT always $EXPERIMENT: the bare-hand
+# control logs under leap_plain_cube_reorient_control so its checkpoints never
+# interleave with the XELA main line. Defaulting it here rather than reading the
+# global is what lets a non-reference run be queued at all.
+latest_iter() {  # $1 = run name, $2 = experiment (default $EXPERIMENT)
+  ls -1 "$REPO/logs/rsl_rl/${2:-$EXPERIMENT}"/*_"$1"/model_*.pt 2>/dev/null \
     | sed 's/.*model_\([0-9]*\)\.pt/\1/' | sort -n | tail -1
 }
-final_ckpt() {   # $1 = run name, $2 = max iters
-  ls -1 "$REPO/logs/rsl_rl/$EXPERIMENT"/*_"$1"/model_$(($2 - 1)).pt 2>/dev/null | head -1
+final_ckpt() {   # $1 = run name, $2 = max iters, $3 = experiment
+  ls -1 "$REPO/logs/rsl_rl/${3:-$EXPERIMENT}"/*_"$1"/model_$(($2 - 1)).pt 2>/dev/null | head -1
 }
 
 # $1 = label, $2 = checkpoint, $3 = REPORTING threshold (rad), $4.. = env
@@ -205,15 +217,23 @@ else
 fi
 
 for entry in "${QUEUE[@]}"; do
-  IFS='|' read -r name iters seed train_args eval_args trainenv_args <<<"$entry"
+  IFS='|' read -r name iters seed train_args eval_args trainenv_args task experiment <<<"$entry"
+  # Fields 7-8 are optional; an entry that omits them is a reference-task run.
+  task="${task:-Mjlab-LeapXELA-Cube-Reorient-Reference}"
+  experiment="${experiment:-$EXPERIMENT}"
 
   if [ -f "$STOP_FILE" ]; then log "STOP_SUPERVISOR present; standing down"; exit 0; fi
 
-  it=$(latest_iter "$name"); it=${it:-none}
+  it=$(latest_iter "$name" "$experiment"); it=${it:-none}
   log "--- run '$name' (target $iters, newest checkpoint: $it) ---"
 
-  printf 'RUN_NAME=%s\nMAX_ITERS=%s\nNUM_ENVS=%s\nSEED=%s\nSAVE_INTERVAL=%s\nEXTRA_ARGS=%s\n' \
-    "$name" "$iters" "$NUM_ENVS" "$seed" "$SAVE_INTERVAL" "$train_args" >"$STATE_FILE"
+  # TASK and EXPERIMENT belong in the state file for the same reason the rest of
+  # it does: the @reboot hook passes no environment. Omitting them cost the
+  # bare-hand control 1238 iterations on 2026-09-13 -- the 00:06 reboot fired
+  # this queue, which rewrote the state file for its own last entry, and nothing
+  # remembered that a plain-LEAP run had been in flight.
+  printf 'RUN_NAME=%s\nMAX_ITERS=%s\nNUM_ENVS=%s\nSEED=%s\nSAVE_INTERVAL=%s\nTASK=%s\nEXPERIMENT=%s\nEXTRA_ARGS=%s\n' \
+    "$name" "$iters" "$NUM_ENVS" "$seed" "$SAVE_INTERVAL" "$task" "$experiment" "$train_args" >"$STATE_FILE"
 
   # supervise_run.sh reads STATE_FILE, exits 0 immediately if already complete,
   # and otherwise trains/resumes until it is.
@@ -224,7 +244,7 @@ for entry in "${QUEUE[@]}"; do
     exit "$rc"
   fi
 
-  ckpt=$(final_ckpt "$name" "$iters")
+  ckpt=$(final_ckpt "$name" "$iters" "$experiment")
   if [ -z "$ckpt" ]; then
     log "'$name' finished but model_$((iters - 1)).pt is missing — stopping"
     exit 1

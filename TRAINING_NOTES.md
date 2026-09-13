@@ -2349,6 +2349,7 @@ failure.
 | 9000 | 83.0% | 1.15 | 5.39° | 95.9% | 93.3% | 96.0% | 9.5 |
 | 10250 | 80.1% | 1.17 | 5.29° | 96.0% | 94.1% | 96.0% | 9.2 |
 | 11625 | 78.4% | 1.14 | 5.29° | 95.9% | 94.2% | 95.6% | 9.3 |
+| 13999 | 79.2% | 1.27 | 5.27° | 95.9% | 94.5% | 95.6% | 9.2 |
 
 **The 2999 and 4499 rows are single-seed (seed 7) and are not the pooled figures quoted in
 sections 33 and 34** (31.2% and 57.3%, each pooled over 3 seeds × ~130 episodes). Read down this
@@ -2356,6 +2357,12 @@ column only against other rows in this table; the 50.7% at 4499 is not a regress
 it is the same checkpoint measured on one seed instead of three.
 
 **The recipe works, and it converges at ~iteration 8000.** Everything after that is flat.
+
+**The 13999 row was added 2026-09-13.** `night-ext` was requeued after the ablations and ran
+11625 → 13999 overnight; the queue scored it at 04:20. It is the third checkpoint in a row that
+lands on the same numbers, and it settles the shape of the curve: 8000, 11625 and 13999 are
+indistinguishable, so ~6000 iterations — two GB10 nights and the tail of the A100 rental — bought
+nothing measurable past iteration 8000.
 
 ### The plateau is measured, not read off one seed
 
@@ -2478,3 +2485,131 @@ prefix is used because these score checkpoints from two run directories as one s
   (`a queue is already running; leaving it alone` → `STOP_SUPERVISOR present; standing down`).
   The guard behaved as designed in both places; the cost was ~4 h of idle GPU, which is the
   price of a guard that does not restart a run nobody has looked at yet.
+
+## 41. `leap-limits` — widening the splay cap makes it worse
+
+The joint-limit finding from 2026-09-12: `joint_config.json` carries a `leap` section and a
+`leapXela` section, the generator hardcodes the latter, and its lateral-splay `rot` entry is
+written `lower > upper`. It resolves to ±20° where bare LEAP has ±60°. A static sweep puts the
+first finger-finger contact at 50°, so the cap is not collision avoidance — it looks like a
+transcription error that has been in every run this project has ever done.
+
+`--leap-joint-limits` borrows bare LEAP's ranges for the LeapXELA model, which isolates the
+limits from the pads. The cell is a warm start from the main line's `model_8000` — the converged
+recipe, unchanged in every other respect — trained 8000 → 10525 (2525 iterations, 2 h 43 m,
+4.00 s/iter, stopped by SIGTERM at 22:54).
+
+Reference env, deterministic, `--cube-priority 0`, **1000-step episodes**, seeds 7/8/9, against
+the main line measured the same way:
+
+| | reach < 5.7° (s7 / s8 / s9) | pooled | median best | p90 best | drops/rollout |
+| --- | --- | --- | --- | --- | --- |
+| mainline @8000 | 84.0 / 83.3 / 81.9% | **82.6%** | 5.2° | 7–15° | 0.09–0.20 |
+| mainline @11625 | 83.4 / 85.3 / 81.0% | **83.2%** | 5.1° | 13–16° | 0.15–0.21 |
+| leap-limits @10525 | 73.0 / 76.3 / 69.0% | **72.6%** | 5.4° | **21–31°** | 0.11–0.23 |
+
+**A ten-point regression, and the per-seed ranges do not overlap** (69–76% against 80–85%), which
+is well outside the ±3% seed spread established in section 37. The median best error barely
+moves — 5.4° against 5.2° — so this is not a policy that got coarser. It is a policy whose *tail*
+got worse: p90 best error roughly doubles, and the episodes it loses are episodes it used to
+finish.
+
+Read narrowly. What is falsified is "the ±20° cap is what the XELA hand is losing to, and
+restoring the range recovers it" — restoring the range from a converged checkpoint costs ten
+points at a 2525-iteration budget. What is *not* tested is a from-scratch XELA run under the wide
+limits: this policy spent 8000 iterations learning a grasp inside a ±20° box and then had the box
+widened under it, which is a different question from learning in the wide box from the start.
+The honest summary is that the cap is not a cheap win, not that the cap is harmless.
+
+## 42. `leap-control` — the bare hand beats the tactile hand under the same recipe
+
+The control this file has been promising since 2026-09-06 and never ran. `Mjlab-LEAP-Cube-Reorient-Control`
+is mujoco_playground's bare LEAP hand — no XELA pads — under the **run-14 recipe** (linear
+kernel, goal drift on, `entropy_coef` 0.01, seed 42, 8192 envs, 3000 iterations). The recipe is
+deliberately the old one: run 14 is the matched control, and the only registered difference
+between them is the hand.
+
+Reference env, deterministic, `--cube-priority 0`, `--num-envs 128 --num-steps 700`, seed 7:
+
+| | run 14 (LeapXELA) @2999 | leap-control (bare LEAP) @2999 |
+| --- | --- | --- |
+| reach < 5.7° | 1.6% (2/128) | **8.5%** (11/129) |
+| goals / episode | 0.016 | **0.085** |
+| median best error | 28.6° | **17.0°** |
+| p90 best error | 61.4° | **37.0°** |
+| total closure | 76.5% | **86.4%** |
+| spin closure | 83.9% | **90.3%** |
+| tip closure | 72.4% | **84.6%** |
+| ω at best error | 2.11 rad/s | **0.68 rad/s** |
+| drops / rollout | 0.04 | 0.02 |
+| reach < 22.9° (`at040`) | 33.6% | **76.6%** |
+| HELD @ 22.9° | 24.2% | **67.2%** |
+
+**Every column, in the same direction.** The clearest one is not the success rate, it is
+`ω at best error`: 2.11 rad/s against 0.68. Run 14's best moment is the cube *passing through* a
+good orientation at speed; the bare hand's best moment is the cube nearly stopped there. That is
+the difference between a tumbler and a manipulator, and it is the same distinction section 37
+draws between the drift-on ceiling and the pinned-goal result.
+
+### What the comparison does and does not isolate
+
+Verified identical (2026-09-12, and the palm check re-run 2026-09-13):
+
+- joint axes 16/16, joint positions 16/16
+- total mass 746 g (XELA) vs 749 g (bare)
+- `grasp_site` world position `(0.11, 0, 0.03)` in **both**, with an identity site frame in both
+- palm tilt 20.01° (XELA at `--palm-euler 0 1.92 -1.57`) against 19.85° (bare) — 0.16° apart,
+  from bodies whose local axis conventions differ but whose inclination does not
+
+So the cube spawns in the same place, at the same palm angle, against the same mass and
+kinematics. Palm angle is a strong hyperparameter here and it is **not** the explanation.
+
+Two things do differ, and both favour the bare hand a priori:
+
+1. **The pads.** 66 geoms against 56; the +10 are the tactile skin.
+2. **The joint limits.** The bare model ships LEAP's own ±60° lateral splay against the
+   LeapXELA MJCF's ±20° (run 41).
+
+These are confounded in this cell. Run 41 bears on it but does not resolve it: transplanting the
+wide limits onto the XELA hand from a converged checkpoint made things *worse*, not better, so
+the wide range is not an obvious free advantage — but run 41 is a warm start and this is a
+from-scratch run, and those are not composable. **The attribution between pads and limits is
+open.** What is no longer open is the claim the 2026-09-06 audit made: "the difference is the
+hand" was offered as an explanation for why our policy failed where the reference worked, and on
+the one recipe where both hands have now been run, the hand difference is real and points the
+way the audit said — just not for a reason anyone checked, and not by a margin that rescues the
+old recipe (8.5% is still an order of magnitude below the main line's 82%).
+
+### Why this does not yet change the main line
+
+`leap-control` is 3000 iterations under a **superseded** recipe. The main line (run 37) reaches
+82.5% with the inverse kernel, the pinned goal and `entropy_coef` 1e-3 on the *tactile* hand. The
+question this cell raises — does the bare hand move the 82% / 5.3° ceiling — is untested, because
+the bare hand has never been run under the recipe that works. That is the next cell.
+
+### Infrastructure
+
+Two config-plumbing bugs, both the "a setting that looks applied and is not" class:
+
+- `supervise_run.sh` set `TASK` and `EXPERIMENT` at the top of the file, *before* reading
+  `CURRENT_RUN.env`. The read loop only assigns a key that is still empty, so a `TASK` written to
+  the state file was silently discarded and the run trained the default LeapXELA task under
+  whatever name the state file asked for. Defaults now resolve after the read.
+- `run_queue.sh` never wrote `TASK`/`EXPERIMENT` to the state file at all, and `latest_iter` /
+  `final_ckpt` looked only under `$EXPERIMENT`. The queue entry format grew two optional fields
+  (7: task, 8: experiment tree). Cost: `leap-control` was hand-launched, reached 1238/3000, and
+  died in the 00:06 reboot — the `@reboot` hook fired the queue, which rewrote the state file for
+  its own last entry, and nothing remembered a plain-LEAP run had been in flight. It resumed from
+  `model_1225` once queued properly. This is the third time the "queue a run, don't hand-launch
+  it" rule has been paid for.
+
+The bare hand logs under its own experiment tree, `leap_plain_cube_reorient_control`, so its
+checkpoints never interleave with the XELA main line.
+
+### Artifacts
+
+`eval/leap-control_n128_det.json` and `_at040_det.json` (+ `_eval.txt`);
+`eval/leap-limits_it10525_n128_s{7,8,9}_len1000_det.json` and `eval/leap-limits_eval.txt`;
+`eval/night-ext_n128{,_at040}_det.json` and `eval/night-ext_trainenv_n128{,_at040}_det.json`.
+The bare-LEAP MJCF and meshes are gitignored (~15 MB of third-party Apache-2.0 assets); see
+`.gitignore` for the regeneration commands.

@@ -19,8 +19,6 @@ set -uo pipefail
 REPO="/home/afthabshiraz/MujocoRL-Internship/leapXelaMjLab"
 UV="/home/afthabshiraz/.local/bin/uv"
 
-TASK="${TASK:-Mjlab-LeapXELA-Cube-Reorient-Reference}"
-EXPERIMENT="${EXPERIMENT:-leap_xela_cube_reorient_reference}"
 CONSOLE_DIR="$REPO/logs/console"
 
 # Where the in-flight run's settings live. run_queue.sh writes this before each
@@ -47,6 +45,16 @@ fi
 # EXTRA_ARGS is applied to the fresh launch AND every resume: an override that
 # is dropped on resume silently trains a different config in the same run
 # directory, which is the same class of bug as the --num-envs note below.
+# TASK and EXPERIMENT default HERE, after the state file is read, not before it.
+# They used to be set at the top, which made them unsettable from
+# CURRENT_RUN.env: the loop above only assigns a key that is still empty, so a
+# TASK written to the state file was silently discarded and the run trained the
+# default LeapXELA task under whatever name the state file asked for. That is
+# the same class of failure as the --num-envs note below -- a config that looks
+# applied and is not. Found 2026-09-12 while setting up the bare-hand control.
+TASK="${TASK:-Mjlab-LeapXELA-Cube-Reorient-Reference}"
+EXPERIMENT="${EXPERIMENT:-leap_xela_cube_reorient_reference}"
+
 RUN_NAME="${RUN_NAME:-}"
 MAX_ITERS="${MAX_ITERS:-1500}"
 NUM_ENVS="${NUM_ENVS:-8192}"

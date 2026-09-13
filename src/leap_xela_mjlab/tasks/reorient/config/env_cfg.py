@@ -26,6 +26,7 @@ from mjlab.utils.noise import UniformNoiseCfg as Unoise
 from mjlab.viewer import ViewerConfig
 
 from leap_xela_mjlab.robots.cube import get_cube_cfg, get_goal_cube_cfg
+from leap_xela_mjlab.robots.leap_plain import get_leap_plain_cfg
 from leap_xela_mjlab.robots.leap_xela import JOINT_NAMES, get_leap_xela_cfg
 from leap_xela_mjlab.tasks.reorient import mdp as reorient_mdp
 
@@ -108,6 +109,7 @@ def make_reorient_env_cfg(
   actor_cube_ang_vel: bool = False,
   angvel_align_weight: float = 0.0,
   leap_joint_limits: bool = False,
+  hand: str = "leapxela",
   # L2 penalty on raw action MAGNITUDE. 0.0 keeps the historical behaviour
   # (runs 1-26), where only the action *rate* was penalized and the policy's
   # mean action ran away to ~13 -- 3x the full joint range once scaled, i.e.
@@ -137,6 +139,13 @@ def make_reorient_env_cfg(
   if preset not in ("baseline", "curriculum"):
     raise ValueError(f"Unknown preset {preset!r}; expected 'baseline' or 'curriculum'.")
   baseline = preset == "baseline"
+  if hand not in ("leapxela", "leap_plain"):
+    raise ValueError(f"Unknown hand {hand!r}; expected 'leapxela' or 'leap_plain'.")
+  if hand == "leap_plain" and leap_joint_limits:
+    raise ValueError(
+      "--leap-joint-limits is a LeapXELA-only override that borrows the bare "
+      "hand's ranges; the bare hand already has them."
+    )
   if orientation_kernel not in ("linear", "inverse"):
     raise ValueError(
       f"Unknown orientation_kernel {orientation_kernel!r}; expected 'linear' or 'inverse'."
@@ -525,10 +534,19 @@ def make_reorient_env_cfg(
     scene=SceneCfg(
       terrain=TerrainEntityCfg(terrain_type="plane"),
       entities={
-        "robot": get_leap_xela_cfg(
-          finger_tip_type=finger_tip_type,
-          palm_euler=palm_euler,
-          leap_joint_limits=leap_joint_limits
+        # "leap_plain" is the bare LEAP hand -- the control for what the XELA
+        # pads cost. It takes no fingertip/palm/limit arguments: the fingertip
+        # type IS the pads (which it does not have), its palm transform is
+        # folded into its own MJCF, and its joint limits are already the LEAP
+        # ones that --leap-joint-limits exists to borrow.
+        "robot": (
+          get_leap_plain_cfg()
+          if hand == "leap_plain"
+          else get_leap_xela_cfg(
+            finger_tip_type=finger_tip_type,
+            palm_euler=palm_euler,
+            leap_joint_limits=leap_joint_limits
+          )
         ),
         "cube": get_cube_cfg(
           half_size=cube_half_size,
@@ -616,6 +634,7 @@ def make_reorient_env_cfg(
     "actor_cube_ang_vel": actor_cube_ang_vel,
     "angvel_align_weight": angvel_align_weight,
     "leap_joint_limits": leap_joint_limits,
+    "hand": hand,
     "action_l2_weight": action_l2_weight,
     "success_threshold": success_threshold,
     "orientation_kernel": orientation_kernel,
@@ -630,6 +649,30 @@ def make_reorient_env_cfg(
         del cfg.events[key]
 
   return cfg
+
+
+def leap_plain_cube_reorient_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """Bare LEAP hand, otherwise identical to the reference task.
+
+  The CONTROL for "what do the XELA pads cost us". Registers under the
+  ``reference`` preset so the RL settings, cube and goal machinery match the
+  task our own policies are trained on; the hand is the only registered
+  difference. Note it differs from LeapXELA in pads AND joint ranges -- the bare
+  model ships LEAP's own limits -- so attribute a result to both unless the
+  `leap-limits` cell has separated them.
+  """
+  return make_reorient_env_cfg(
+    play=play,
+    preset="baseline",
+    hand="leap_plain",
+    # Cube size and mass are properties of the OBJECT, not the hand, so they are
+    # matched to the reference task exactly -- otherwise the control would vary
+    # the cube as well. Same two values leap_xela_cube_reorient_reference_env_cfg
+    # pins, and for the same reason: Hamid's XML holds mass constant across
+    # scales while _cube_mass_for_half_size would scale it with volume.
+    cube_half_size=0.035,
+    cube_mass=0.108,
+  )
 
 
 def leap_xela_cube_reorient_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
