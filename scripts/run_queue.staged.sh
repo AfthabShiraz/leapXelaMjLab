@@ -178,6 +178,35 @@ QUEUE=(
   # Abort on the usual criteria: training error above ~70 deg for 200
   # iterations, action std past ~4, or NaN critic loss.
   "bare-inv-pin|8000|42|--cube-priority 0 --orientation-kernel inverse --goal-drift False --goal-resample-on-success False --entropy-coef 0.001 --init-from $REPO/logs/rsl_rl/leap_plain_cube_reorient_control/2026-09-12_23-00-33_leap-control/model_1500.pt|--task Mjlab-LEAP-Cube-Reorient-Control --cube-priority 0|--task Mjlab-LEAP-Cube-Reorient-Control --cube-priority 0 --goal-drift False --goal-resample-on-success False|Mjlab-LEAP-Cube-Reorient-Control|leap_plain_cube_reorient_control"
+  # RUN 44 -- the third corner of the 2x2, which is the only thing that can
+  # attribute run 43's 89.6% vs 82.5%.
+  #
+  #                          narrow splay (+/-20)      wide splay (+/-60)
+  #   pads (LeapXELA)        run 14      1.6%          xela-wide-r14   <- THIS
+  #   no pads (bare LEAP)    --                        leap-control    8.5%
+  #
+  # Run 14 and leap-control (run 42) are the two known corners, both FROM
+  # SCRATCH under the run-14 recipe to 3000, so this cell must be from scratch
+  # under the run-14 recipe to 3000 as well -- the only change from run 14 is
+  # --leap-joint-limits.
+  #
+  # Why from scratch and not a warm start: run 41 already did the warm-start
+  # version (limits widened under a converged policy at iteration 8000) and lost
+  # ten points, which does not separate "the cap is the problem" from "changing
+  # the action space late is expensive". leap-control proves a from-scratch run
+  # on this recipe clears the iteration-300 tip-over breakthrough, so the
+  # from-scratch objection in "Reward edits die at the breakthrough" does not
+  # apply to a limits change -- it applies to reward edits.
+  #
+  # Readings, written before the run. Against run 14's 1.6% / 28.6 deg and
+  # leap-control's 8.5% / 17.0 deg at the same iteration:
+  #   ~8.5%  -> it is the SPLAY CAP. Fix the `leapXela` rot entry in
+  #             joint_config.json, rerun the main line, keep the pads. This is
+  #             the outcome that preserves Tasks 2-4.
+  #   ~1.6%  -> it is the PADS. Task 1's main line moves to the bare hand and
+  #             the tactile contribution has to be argued, not assumed.
+  #   between -> both contribute; report the split.
+  "xela-wide-r14|3000|42|--cube-priority 0 --leap-joint-limits True|--cube-priority 0 --leap-joint-limits True|"
 )
 
 mkdir -p "$CONSOLE_DIR" "$EVAL_DIR"

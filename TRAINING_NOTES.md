@@ -2613,3 +2613,96 @@ checkpoints never interleave with the XELA main line.
 `eval/night-ext_n128{,_at040}_det.json` and `eval/night-ext_trainenv_n128{,_at040}_det.json`.
 The bare-LEAP MJCF and meshes are gitignored (~15 MB of third-party Apache-2.0 assets); see
 `.gitignore` for the regeneration commands.
+
+## 43. `bare-inv-pin` — the bare hand under the recipe that works, and it moves the ceiling
+
+Run 42 left the obvious question open: it beat run 14 on a *superseded* recipe, and the main line
+reaches 82.5% with the inverse kernel, the pinned goal and `entropy_coef` 1e-3 on the tactile
+hand. This cell mirrors run 33 exactly with the hand swapped — warm start from `leap-control`'s
+`model_1500` (past the iteration-300 tip-over breakthrough, and demonstrably tipping), then the
+same three changes, trained 1500 → 7999. 2026-09-13 10:52–16:30, 5 h 38 m, 3.0 s/iteration
+against the XELA hand's 4.0 (ten fewer geoms), seed 42, 8192 envs.
+
+Both curves are "iterations since the warm start at 1500", so the rows are matched on training
+budget as well as on iteration number.
+
+### The curve, against run 37's curve
+
+Reference env (drift on), deterministic, `--cube-priority 0`, `--num-envs 128 --num-steps 700`,
+seed 7. Main-line rows are section 37's table, unchanged.
+
+| iteration | mainline reach | **bare reach** | mainline median best | **bare median best** | mainline goals/ep | **bare goals/ep** |
+| --- | --- | --- | --- | --- | --- | --- |
+| ~3000 | 33.1% | **79.6%** | 10.78° | **5.28°** | 0.40 | **1.29** |
+| ~4500 | 50.7% | **84.8%** | 5.72° | **5.13°** | 0.70 | **1.46** |
+| 5500 | 67.4% | **88.8%** | 5.57° | **4.98°** | 0.95 | **1.53** |
+| 6750 | 75.5% | **90.1%** | 5.36° | **5.13°** | 1.01 | **1.61** |
+| 8000 | 83.9% | **90.3%** | 5.30° | **5.01°** | 1.14 | **1.66** |
+
+**The bare hand at 3000 is already where the tactile hand gets to at 8000.** It clears 88% by
+5500 and then flattens — the same convergence shape as the main line, reached roughly 2500
+iterations earlier and ~7 points higher.
+
+### Three seeds at the final checkpoint
+
+The ±3% per-seed spread from section 37 is why one seed decides nothing:
+
+| | seed 7 | seed 8 | seed 9 | pooled |
+| --- | --- | --- | --- | --- |
+| mainline @8000 | 83.9% | 79.1% | 84.3% | **82.5%** |
+| bare-inv-pin @7999 | 90.3% | 89.0% | 89.6% | **89.6%** |
+
+**89.6% against 82.5%, with per-seed ranges that do not overlap** (89.0–90.3 against 79.1–84.3).
+That is outside the noise floor in a way the run-41 comparison also was, and in the opposite
+direction.
+
+The tail is where it actually shows. p90 of best error at the final checkpoint: mainline **14.97°**,
+bare **5.73 / 6.36 / 5.85°**. The main line's median episode reaches the goal and its ninetieth
+percentile does not come close; the bare hand's ninetieth percentile is essentially at the
+threshold. The hard residual section 38–40 went looking for is, on this hand, mostly gone.
+
+### The pinned-goal eval — terminal precision
+
+`model_7999` with `--goal-drift False --goal-resample-on-success False`, against the main line's
+pinned figures from section 37:
+
+| | mainline @11625 pinned | **bare-inv-pin @7999 pinned** |
+| --- | --- | --- |
+| HELD @ 0.1 rad (10 consecutive steps) | 73.1% | **82.9%** (116/140) |
+| SETTLED (\|w\| < 0.2 rad/s) | 73.9% | **85.7%** |
+| median best error | 0.73° | **0.41°** |
+| p10 best error | 0.15° | 0.17° |
+| threshold re-entries / episode | 5.61 | 9.46 |
+
+Better on arrival *and* on holding. The p10 is the one place they tie, which is the expected
+shape: both policies can be very precise on their best episodes, and the bare hand is more
+often in that regime.
+
+### The cost, and it is real
+
+**Drops roughly double.** Per 700-step rollout: mainline @8000 0.14, bare @7999 0.23–0.32 across
+the three seeds. In "goals per drop" — the quantity comparable to the playground paper's
+consecutive rotations before failure — that is **8.0 pooled for the bare hand against ~9.1 for
+the main line**, and it dips as low as 5.2 mid-curve at iteration 4500.
+
+So the bare hand is not strictly better. It reaches the goal far more reliably and holds it more
+precisely, and it loses the cube more often doing it. Which of those matters depends on the task
+framing: for "reach a commanded orientation" the bare hand wins outright; for "how long can it
+keep going" the two are close, with the main line slightly ahead.
+
+### What this does and does not establish
+
+It does **not** attribute the gain. Run 42's confound is unchanged and inherited here: the bare
+model differs from LeapXELA in the pads (56 geoms vs 66) **and** in the lateral splay range
+(±60° vs ±20°, run 41). This cell shows the difference survives the good recipe and gets larger,
+not which half of it is responsible.
+
+That distinction is the whole decision. If it is the **splay cap**, the fix is a one-line
+correction to the `leapXela` section of `joint_config.json` and the tactile hand keeps
+everything — which matters, because the pads are the point of the internship and Tasks 2–4 need
+them. If it is the **pads**, Task 1's main line has a genuine trade-off to argue rather than a
+bug to fix.
+
+Run 41 does not settle it: it changed the limits on a *converged* policy and lost ten points,
+which says the transplant is costly, not that the limits are harmless. The clean cell is the
+third corner of the 2×2, and it is what run 44 is for.
