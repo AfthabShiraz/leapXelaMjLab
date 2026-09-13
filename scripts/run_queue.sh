@@ -148,6 +148,36 @@ QUEUE=(
   # Target 14000 is what fits the night at ~4.06 s/iteration; it does not have to
   # finish -- every 25th checkpoint is kept and the run resumes from the newest.
   "night-ext|14000|42|--cube-priority 0 --orientation-kernel inverse --goal-drift False --goal-resample-on-success False --entropy-coef 0.001 --init-from $REPO/logs/rsl_rl/$EXPERIMENT/remote_brev-ext/model_8999.pt|--cube-priority 0|--cube-priority 0 --goal-drift False --goal-resample-on-success False"
+  # THE BARE HAND UNDER THE RECIPE THAT WORKS. Run 42 showed the bare LEAP hand
+  # beats LeapXELA under the run-14 recipe (8.5% vs 1.6%, 17.0 vs 28.6 deg), but
+  # the run-14 recipe is superseded: the main line reaches 82.5% / 5.3 deg with
+  # the inverse kernel, the pinned goal and entropy 1e-3 on the TACTILE hand.
+  # The open question is whether the hand moves THAT ceiling, and it cannot be
+  # answered from run 42.
+  #
+  # Design mirrors run 33 exactly, with the hand swapped. Run 33 warm-started
+  # run 14's model_1500 -- past the iteration-300 tip-over breakthrough that
+  # every from-scratch reward edit dies at -- and applied the three changes.
+  # leap-control's model_1500 is the same thing for the bare hand: same recipe,
+  # same iteration, and it demonstrably tips (84.6% tip closure at 2999).
+  #
+  # Target 8000 rather than 3000 because checkpoints land every 25 iterations
+  # and section 37 already scored the main line retrospectively at 2999 / 4499 /
+  # 5500 / 6750 / 8000. The same series on the bare hand gives a curve against a
+  # curve, not two points, for one launch of ~6500 iterations (~7.2 h at 4 s).
+  #
+  # Readings, written before the run:
+  #   @2999 vs run 33's 31.2% pooled / 10.78 deg median best
+  #   @8000 vs run 37's 82.5% pooled / 5.3 deg median best
+  # A win at 8000 says the pads (or the splay cap -- run 41 leaves them
+  # confounded) cost the converged policy real performance, and the main line
+  # should move to the bare hand for Task 1. A null says run 42's advantage was
+  # an artefact of a weak recipe: the bare hand learns the OLD reward faster and
+  # both hands saturate the same ceiling once the reward is right, which would
+  # make the ceiling a property of the task, not the skin.
+  # Abort on the usual criteria: training error above ~70 deg for 200
+  # iterations, action std past ~4, or NaN critic loss.
+  "bare-inv-pin|8000|42|--cube-priority 0 --orientation-kernel inverse --goal-drift False --goal-resample-on-success False --entropy-coef 0.001 --init-from $REPO/logs/rsl_rl/leap_plain_cube_reorient_control/2026-09-12_23-00-33_leap-control/model_1500.pt|--task Mjlab-LEAP-Cube-Reorient-Control --cube-priority 0|--task Mjlab-LEAP-Cube-Reorient-Control --cube-priority 0 --goal-drift False --goal-resample-on-success False|Mjlab-LEAP-Cube-Reorient-Control|leap_plain_cube_reorient_control"
 )
 
 mkdir -p "$CONSOLE_DIR" "$EVAL_DIR"
